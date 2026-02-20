@@ -24,37 +24,56 @@ if (count($articulos_validos) === 0) {
     die("Error: Debe seleccionar al menos un artículo válido.");
 }
 
-$area = vacio($_POST['area'] ?? '');
+$area   = vacio($_POST['area']   ?? '');
 $puesto = vacio($_POST['puesto'] ?? '');
-$fecha = $_POST['fecha'] ?? date('Y-m-d');
+$fecha  = $_POST['fecha'] ?? date('Y-m-d');
 
-// Datos generales
-$pc_marca = vacio($_POST['pc_marca'] ?? '');
+// --- Equipo de cómputo ---
+$pc_marca  = vacio($_POST['pc_marca']  ?? '');
 $pc_modelo = vacio($_POST['pc_modelo'] ?? '');
-$pc_serie = vacio($_POST['pc_serie'] ?? '');
-$pc_so = vacio($_POST['pc_so'] ?? '');
-$pc_obs = vacio($_POST['pc_obs'] ?? '');
+$pc_serie  = vacio($_POST['pc_serie']  ?? '');
+$pc_so     = vacio($_POST['pc_so']     ?? '');
+$pc_obs    = vacio($_POST['pc_obs']    ?? '');
 
+// --- Cargador PC ---
 $cargador_obs = vacio($_POST['cargador_obs'] ?? '');
 
-$monitor_marca = vacio($_POST['monitor_marca'] ?? '');
+// --- Monitor ---
+$monitor_marca  = vacio($_POST['monitor_marca']  ?? '');
 $monitor_modelo = vacio($_POST['monitor_modelo'] ?? '');
-$monitor_serie = vacio($_POST['monitor_serie'] ?? '');
-$monitor_obs = vacio($_POST['monitor_obs'] ?? '');
+$monitor_serie  = vacio($_POST['monitor_serie']  ?? '');
+$monitor_obs    = vacio($_POST['monitor_obs']    ?? '');
 
-$cel_marca = vacio($_POST['cel_marca'] ?? '');
-$cel_modelo = vacio($_POST['cel_modelo'] ?? '');
-$cel_num_mod = vacio($_POST['cel_num_mod'] ?? '');
-$cel_serie = vacio($_POST['cel_serie'] ?? '');
-$cel_emei = vacio($_POST['cel_emei'] ?? '');
-$cel_carga = vacio($_POST['cel_carga'] ?? '');
-$cel_obs = vacio($_POST['cel_obs'] ?? '');
+// --- Celular ---
+$cel_marca    = vacio($_POST['cel_marca']    ?? '');
+$cel_modelo   = vacio($_POST['cel_modelo']   ?? '');
+$cel_num_mod  = vacio($_POST['cel_num_mod']  ?? '');
+$cel_serie    = vacio($_POST['cel_serie']    ?? '');
+$cel_emei     = vacio($_POST['cel_emei']     ?? '');
+$cel_carga    = vacio($_POST['cel_carga']    ?? '');
+$cel_obs      = vacio($_POST['cel_obs']      ?? '');
+
+// --- Teléfono fijo (NUEVO) ---
+$tel_marca     = vacio($_POST['tel_marca']     ?? '');
+$tel_modelo    = vacio($_POST['tel_modelo']    ?? '');
+$tel_serie     = vacio($_POST['tel_serie']     ?? '');
+$tel_cargador  = vacio($_POST['tel_cargador']  ?? '');
+$tel_extension = vacio($_POST['tel_extension'] ?? '');
+$tel_obs       = vacio($_POST['tel_obs']       ?? '');
+
+// --- Artículos adicionales (NUEVO) ---
+$adic_cantidades = $_POST['adic_cantidad'] ?? [];
+$adic_articulos  = $_POST['adic_articulo'] ?? [];
+$adic_series     = $_POST['adic_serie']    ?? [];
+$adic_obs_arr    = $_POST['adic_obs']      ?? [];
 
 // Buscar usuario
 $usuario = $conexion->query("SELECT nombre_completo FROM usuarios WHERE id = $usuario_id")->fetch_assoc();
 $nombre_usuario = $usuario['nombre_completo'] ?? 'Empleado';
 
+// -------------------------------------------------------
 // Función para generar tabla con imágenes de evidencia
+// -------------------------------------------------------
 function generarTablaImagenes($imagenes) {
     if (empty($imagenes)) return 'N/A';
     $html = '<table style="border: none; width: 100%; text-align: center;"><tr>';
@@ -67,12 +86,16 @@ function generarTablaImagenes($imagenes) {
     return $html;
 }
 
-// Guardar evidencias
+// -------------------------------------------------------
+// Guardar evidencias fotográficas
+// -------------------------------------------------------
 $evidencias_guardadas = [
-    'pc_evidencia' => [],
-    'monitor_evidencia' => [],
-    'cel_evidencia' => [],
-    'cargador_evidencia' => []
+    'pc_evidencia'         => [],
+    'monitor_evidencia'    => [],
+    'cel_evidencia'        => [],
+    'cargador_evidencia'   => [],
+    'tel_evidencia'        => [],   // NUEVO
+    'adicionales_evidencia'=> [],   // NUEVO
 ];
 
 foreach ($evidencias_guardadas as $tipo => &$lista) {
@@ -81,7 +104,7 @@ foreach ($evidencias_guardadas as $tipo => &$lista) {
         if (!is_dir($carpeta)) mkdir($carpeta, 0777, true);
         foreach ($_FILES[$tipo]['tmp_name'] as $i => $tmpName) {
             $nombre = basename($_FILES[$tipo]['name'][$i]);
-            $ruta = $carpeta . time() . "_$i" . "_" . $nombre;
+            $ruta   = $carpeta . time() . "_$i" . "_" . $nombre;
             if (move_uploaded_file($tmpName, $ruta)) {
                 $lista[] = $ruta;
             }
@@ -90,37 +113,63 @@ foreach ($evidencias_guardadas as $tipo => &$lista) {
 }
 
 // Convertir evidencias a HTML
-$pc_evidencia_html = generarTablaImagenes($evidencias_guardadas['pc_evidencia']);
-$monitor_evidencia_html = generarTablaImagenes($evidencias_guardadas['monitor_evidencia']);
-$cel_evidencia_html = generarTablaImagenes($evidencias_guardadas['cel_evidencia']);
-$cargador_evidencia_html = generarTablaImagenes($evidencias_guardadas['cargador_evidencia']);
+$pc_evidencia_html          = generarTablaImagenes($evidencias_guardadas['pc_evidencia']);
+$monitor_evidencia_html     = generarTablaImagenes($evidencias_guardadas['monitor_evidencia']);
+$cel_evidencia_html         = generarTablaImagenes($evidencias_guardadas['cel_evidencia']);
+$cargador_evidencia_html    = generarTablaImagenes($evidencias_guardadas['cargador_evidencia']);
+$tel_evidencia_html         = generarTablaImagenes($evidencias_guardadas['tel_evidencia']);
+$adicionales_evidencia_html = generarTablaImagenes($evidencias_guardadas['adicionales_evidencia']);
 
-// Armar tabla HTML para los artículos seleccionados
-$articulosHTML = '';
+// -------------------------------------------------------
+// Generar filas HTML para artículos adicionales
+// -------------------------------------------------------
+$articulos_adicionales_filas = '';
+if (!empty($adic_articulos)) {
+    foreach ($adic_articulos as $i => $art) {
+        if (empty(trim($art))) continue;
+        $cant  = htmlspecialchars($adic_cantidades[$i] ?? '1');
+        $art   = htmlspecialchars($art);
+        $serie = htmlspecialchars($adic_series[$i]    ?? 'N/A');
+        $obs   = htmlspecialchars($adic_obs_arr[$i]   ?? '');
+        $articulos_adicionales_filas .= "
+        <tr>
+          <td style='text-align:center;'>$cant</td>
+          <td>$art</td>
+          <td>$serie</td>
+          <td>$obs</td>
+        </tr>";
+    }
+}
+// Si no hay filas, poner fila vacía
+if (empty($articulos_adicionales_filas)) {
+    $articulos_adicionales_filas = "<tr><td colspan='4' style='text-align:center;'>N/A</td></tr>";
+}
+
+// -------------------------------------------------------
+// Armar tabla HTML para los artículos del inventario
+// -------------------------------------------------------
+$articulosHTML  = '';
 $articulosInsert = [];
 
 foreach ($articulos_validos as $articulo_id) {
     $articulo_id = intval($articulo_id);
-    $stmtCheck = $conexion->prepare("SELECT * FROM articulo WHERE id = ? AND estatus = 0");
+    $stmtCheck   = $conexion->prepare("SELECT * FROM articulo WHERE id = ? AND estatus = 0");
     $stmtCheck->bind_param("i", $articulo_id);
     $stmtCheck->execute();
     $result = $stmtCheck->get_result();
 
-    if ($result->num_rows === 0) {
-        // Omitir artículo no válido o ya asignado
-        continue;
-    }
+    if ($result->num_rows === 0) continue;
 
-    $articulo = $result->fetch_assoc();
+    $articulo          = $result->fetch_assoc();
     $articulosInsert[] = $articulo_id;
 
     $articulosHTML .= "
         <tr>
-            <td>" . htmlspecialchars($articulo['articulo']) . "</td>
-            <td>" . htmlspecialchars($articulo['marca']) . "</td>
-            <td>" . htmlspecialchars($articulo['modelo']) . "</td>
+            <td>" . htmlspecialchars($articulo['articulo'])     . "</td>
+            <td>" . htmlspecialchars($articulo['marca'])        . "</td>
+            <td>" . htmlspecialchars($articulo['modelo'])       . "</td>
             <td>" . htmlspecialchars($articulo['numero_serie']) . "</td>
-            <td>" . htmlspecialchars($articulo['categoria']) . "</td>
+            <td>" . htmlspecialchars($articulo['categoria'])    . "</td>
         </tr>
     ";
 }
@@ -129,72 +178,80 @@ if (empty($articulosInsert)) {
     die("Error: Ningún artículo válido para asignar.");
 }
 
-// Cargar plantilla HTML
+// -------------------------------------------------------
+// Cargar plantilla HTML y reemplazar variables
+// -------------------------------------------------------
 $html = file_get_contents('Responsiva_SWL.html');
 
-// Tabla para insertar en plantilla
 $tablaHTML = "
     <table border='1' cellpadding='4' style='border-collapse: collapse; width: 100%;'>
         <thead>
             <tr style='background-color: #ddd;'>
-                <th>Artículo</th>
-                <th>Marca</th>
-                <th>Modelo</th>
-                <th>No. Serie</th>
-                <th>Categoría</th>
+                <th>Artículo</th><th>Marca</th><th>Modelo</th><th>No. Serie</th><th>Categoría</th>
             </tr>
         </thead>
         <tbody>$articulosHTML</tbody>
     </table>
 ";
 
-// Datos a reemplazar en plantilla
 $datos = [
-    '{pc_marca}' => $pc_marca,
-    '{pc_modelo}' => $pc_modelo,
-    '{pc_serie}' => $pc_serie,
-    '{pc_so}' => $pc_so,
-    '{pc_obs}' => $pc_obs,
-
-    '{pc_cargador_marca}' => $pc_marca,
+    // PC
+    '{pc_marca}'           => $pc_marca,
+    '{pc_modelo}'          => $pc_modelo,
+    '{pc_serie}'           => $pc_serie,
+    '{pc_so}'              => $pc_so,
+    '{pc_obs}'             => $pc_obs,
+    // Cargador PC
+    '{pc_cargador_marca}'  => $pc_marca,
     '{pc_cargador_modelo}' => $pc_modelo,
-    '{cargador_obs}' => $cargador_obs,
-
-    '{monitor_marca}' => $monitor_marca,
-    '{monitor_modelo}' => $monitor_modelo,
-    '{monitor_serie}' => $monitor_serie,
-    '{monitor_obs}' => $monitor_obs,
-
-    '{cel_marca}' => $cel_marca,
-    '{cel_modelo}' => $cel_modelo,
-    '{cel_num_mod}' => $cel_num_mod,
-    '{cel_serie}' => $cel_serie,
-    '{cel_emei}' => $cel_emei,
-    '{cel_carga}' => $cel_carga,
-    '{cel_obs}' => $cel_obs,
-
-    '{nombre}' => $nombre_usuario,
-    '{area}' => $area,
-    '{puesto}' => $puesto,
-    '{fecha}' => $fecha,
-
-    '{pc_evidencia}' => $pc_evidencia_html,
-    '{monitor_evidencia}' => $monitor_evidencia_html,
-    '{cel_evidencia}' => $cel_evidencia_html,
-    '{cargador_evidencia}' => $cargador_evidencia_html,
-
-    '{tabla_articulos}' => $tablaHTML,
-
-    '{entrega_nombre_firma}' => 'Ing. Juan Pérez',
-    '{recibe_nombre_firma}' => $nombre_usuario
+    '{cargador_obs}'       => $cargador_obs,
+    // Monitor
+    '{monitor_marca}'      => $monitor_marca,
+    '{monitor_modelo}'     => $monitor_modelo,
+    '{monitor_serie}'      => $monitor_serie,
+    '{monitor_obs}'        => $monitor_obs,
+    // Celular
+    '{cel_marca}'          => $cel_marca,
+    '{cel_modelo}'         => $cel_modelo,
+    '{cel_num_mod}'        => $cel_num_mod,
+    '{cel_serie}'          => $cel_serie,
+    '{cel_emei}'           => $cel_emei,
+    '{cel_carga}'          => $cel_carga,
+    '{cel_obs}'            => $cel_obs,
+    // Teléfono fijo (NUEVO)
+    '{tel_marca}'          => $tel_marca,
+    '{tel_modelo}'         => $tel_modelo,
+    '{tel_serie}'          => $tel_serie,
+    '{tel_cargador}'       => $tel_cargador,
+    '{tel_extension}'      => $tel_extension,
+    '{tel_obs}'            => $tel_obs,
+    // Datos generales
+    '{nombre}'             => $nombre_usuario,
+    '{area}'               => $area,
+    '{puesto}'             => $puesto,
+    '{fecha}'              => $fecha,
+    // Evidencias
+    '{pc_evidencia}'                => $pc_evidencia_html,
+    '{monitor_evidencia}'           => $monitor_evidencia_html,
+    '{cel_evidencia}'               => $cel_evidencia_html,
+    '{cargador_evidencia}'          => $cargador_evidencia_html,
+    '{tel_evidencia}'               => $tel_evidencia_html,            // NUEVO
+    '{adicionales_evidencia}'       => $adicionales_evidencia_html,    // NUEVO
+    '{articulos_adicionales_filas}' => $articulos_adicionales_filas,   // NUEVO
+    // Tabla de inventario
+    '{tabla_articulos}'             => $tablaHTML,
+    // Firmas
+    '{entrega_nombre_firma}'        => 'Ing. Juan Pérez',
+    '{recibe_nombre_firma}'         => $nombre_usuario,
 ];
 
-// Reemplazar variables en plantilla
 foreach ($datos as $clave => $valor) {
     $html = str_replace($clave, $valor, $html);
 }
 
-// Crear PDF
+// -------------------------------------------------------
+// Crear PDF con TCPDF
+// -------------------------------------------------------
 $pdf = new TCPDF();
 $pdf->AddPage();
 $pdf->writeHTML($html, true, false, true, false, '');
@@ -203,44 +260,35 @@ $carpetaPDF = "responsivas/";
 if (!file_exists($carpetaPDF)) mkdir($carpetaPDF, 0777, true);
 
 $nombreArchivo = 'responsiva_' . preg_replace('/\s+/', '_', $nombre_usuario) . '_' . date('Ymd_His') . '.pdf';
-$rutaRelativa = $carpetaPDF . $nombreArchivo;
+$rutaRelativa  = $carpetaPDF . $nombreArchivo;
 $pdf->Output(__DIR__ . '/' . $rutaRelativa, 'F');
 
-// Guardar evidencia (JSON con rutas)
+// -------------------------------------------------------
+// Guardar evidencias y asignaciones en BD
+// -------------------------------------------------------
 $evidenciaJson = $conexion->real_escape_string(json_encode($evidencias_guardadas));
 
 foreach ($articulosInsert as $articulo_id) {
-    // Prepara la consulta aquí dentro del ciclo para evitar referencias
-    $stmtInsert = $conexion->prepare("INSERT INTO asignaciones (usuario_id, articulo_id, area, puesto, fecha, evidencia, pdf, estatus) VALUES (?, ?, ?, ?, ?, ?, ?, 1)");
+    $stmtInsert = $conexion->prepare(
+        "INSERT INTO asignaciones (usuario_id, articulo_id, area, puesto, fecha, evidencia, pdf, estatus)
+         VALUES (?, ?, ?, ?, ?, ?, ?, 1)"
+    );
+    if (!$stmtInsert) die("Error en prepare: " . $conexion->error);
 
-    if (!$stmtInsert) {
-        die("Error en prepare: " . $conexion->error);
-    }
-
-    // Variables locales para bind_param para evitar referencias problemáticas
     $uid = $usuario_id;
     $aid = $articulo_id;
-    $ar = $area;
-    $pu = $puesto;
-    $fe = $fecha;
-    $ev = $evidenciaJson;
-    $pdf = $rutaRelativa;
+    $ar  = $area;
+    $pu  = $puesto;
+    $fe  = $fecha;
+    $ev  = $evidenciaJson;
+    $pf  = $rutaRelativa;
 
-    $stmtInsert->bind_param("iisssss", $uid, $aid, $ar, $pu, $fe, $ev, $pdf);
-
-    if (!$stmtInsert->execute()) {
-        die("Error al insertar asignación para artículo ID $aid: " . $stmtInsert->error);
-    }
-
+    $stmtInsert->bind_param("iisssss", $uid, $aid, $ar, $pu, $fe, $ev, $pf);
+    if (!$stmtInsert->execute()) die("Error al insertar asignación: " . $stmtInsert->error);
     $stmtInsert->close();
 
-    // Actualizar estatus del artículo
-    $update = $conexion->query("UPDATE articulo SET estatus = 1 WHERE id = $aid");
-    if (!$update) {
-        die("Error al actualizar estatus para artículo ID $aid: " . $conexion->error);
-    }
+    $conexion->query("UPDATE articulo SET estatus = 1 WHERE id = $aid");
 }
-
 
 ob_end_clean();
 header("Location: $rutaRelativa");
