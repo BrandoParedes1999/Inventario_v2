@@ -1,0 +1,130 @@
+<style>
+  table { border-collapse: collapse; width: 100%; font-family: Arial, sans-serif; font-size: 11px; }
+  td { border: 1px solid #000; padding: 5px; vertical-align: top; }
+  .header { font-size: 16px; font-weight: bold; text-align: center; }
+  .sub-header { background-color: #E7E6E6; color: #000000; text-align: center; font-weight: bold; }
+  .section-title { background-color: #000000; color: #ffffff; text-align: center; font-weight: bold; }
+  .center { text-align: center; }
+  .no-border { border: none; }
+</style>
+
+
+<table cellpadding="5" cellspacing="0" style="width:100%; font-family: Arial, sans-serif; font-size: 8px; border: 1px solid #000;">
+  <tr>
+    <td rowspan="2" style="width: 20%; text-align: center;">
+      <img src="Logo_SWL.png" width="125" height="70">
+    </td>
+    <td colspan="3" class="header">
+      Check List y Responsiva de herramientas de trabajo
+    </td>
+    <td class="center">
+      Fecha de Emisión:<br><strong>Dic./2023</strong>
+    </td>
+  </tr>
+  <tr class="center">
+    <td>Número de control:<br><strong>SWL-FOR-ADM-003</strong></td>
+    <td>Clasificación del Documento: <strong>Controlado</strong></td>
+    <td>Tipo de Documento:<br><strong>Formato</strong></td>
+    <td>Revisión Núm.<br><strong>00</strong></td>
+  </tr>
+</table>
+
+<p style="font-family: Arial; font-size: 11px; text-align: justify;">
+Sírvase de este presente como Check List y Responsiva de herramientas de trabajo, con las siguientes características, que pertenece a la empresa de Servicios Marinos y Logísticos Shark S.A. de C.V., el cual se compromete en hacer uso de este de manera exclusiva dentro del ámbito de trabajo a:
+</p>
+
+<!-- Datos del trabajador con campos subrayados -->
+<table style="width: 100%; font-family: Arial, sans-serif; font-size: 11px; margin: 15px 0; border: none; border-collapse: collapse;">
+  <tr>
+    <td style="width: 15%; border: none;">Nombre:</td>
+    <td style="width: 35%; border: none; border-bottom: 1px solid #000;">{nombre}</td>
+    <td style="width: 15%; border: none;">Área:</td>
+    <td style="width: 35%; border: none; border-bottom: 1px solid #000;">{area}</td>
+  </tr>
+  <tr>
+    <td style="border: none;">Puesto:</td>
+    <td style="border: none; border-bottom: 1px solid #000;">{puesto}</td>
+    <td style="border: none;">Fecha:</td>
+    <td style="border: none; border-bottom: 1px solid #000;">{fecha}</td>
+  </tr>
+</table>
+
+<!-- Equipo de cómputo -->
+<table>
+  <tr class="section-title">
+    <td colspan="2">Datos | Equipos electrónicos</td>
+  </tr>
+  <tr class="sub-header">
+    <td colspan="2">Equipo de Cómputo</td>
+  </tr>
+  <tr><td>Marca:</td><td>{pc_marca}</td></tr>
+  <tr><td>Modelo:</td><td>{pc_modelo}</td></tr>
+  <tr><td>Sistema Operativo:</td><td>{pc_so}</td></tr>
+  <tr><td>Número de serie:</td><td>{pc_serie}</td></tr>
+  <tr><td>Observaciones:</td><td>{pc_obs}</td></tr>
+  <tr><td colspan="2" class="center"><strong>Evidencia Fotográfica</strong></td></tr>
+  <tr><td colspan="2">{pc_evidencia}</td></tr>
+</table>
+
+
+<!-- Cargador -->
+<table>
+<tr class="sub-header">
+  <td colspan="2">Accesorios electrónicos (Cargador)</td>
+</tr>
+<tr><td>Marca:</td><td>{pc_cargador_marca}</td></tr>
+<tr><td>Modelo:</td><td>{pc_cargador_modelo}</td></tr>
+<tr><td>Observaciones:</td><td>{cargador_obs}</td></tr>
+<tr><td colspan="2" class="center"><strong>Evidencia Fotográfica</strong></td></tr>
+<tr><td colspan="2">{cargador_evidencia}</td></tr>
+</table>
+
+
+
+<!-- Monitor -->
+<table>
+  <tr class="sub-header">
+    <td colspan="2">Monitor</td>
+  </tr>
+  <tr><td>Marca:</td><td>{monitor_marca}</td></tr>
+  <tr><td>Modelo:</td><td>{monitor_modelo}</td></tr>
+  <tr><td>Observaciones:</td><td>{monitor_obs}</td></tr>
+  <tr><td>Número de serie:</td><td>{monitor_serie}</td></tr>
+  <tr><td colspan="2" class="center"><strong>Evidencia Fotográfica</strong></td></tr>
+  <tr><td colspan="2">{monitor_evidencia}</td></tr>
+</table>
+
+<!-- Celular -->
+<table>
+  <tr class="sub-header">
+    <td colspan="2">Equipo Celular</td>
+  </tr>
+  <tr><td>Marca:</td><td>{cel_marca}</td></tr>
+  <tr><td>Modelo:</td><td>{cel_modelo}</td></tr>
+  <tr><td>Número de modelo:</td><td>{cel_num_mod}</td></tr>
+  <tr><td>Número de serie:</td><td>{cel_serie}</td></tr>
+  <tr><td>EMEI:</td><td>{cel_emei}</td></tr>
+  <tr><td>Cargador:</td><td>{cel_carga}</td></tr>
+  <tr><td>Observaciones:</td><td>{cel_obs}</td></tr>
+  <tr><td colspan="2" class="center"><strong>Evidencia Fotográfica</strong></td></tr>
+  <tr><td colspan="2">{cel_evidencia}</td></tr>
+</table>
+
+<br><br>
+
+<p style="font-family: Arial; font-size: 11px; text-align: justify;">
+  El receptor <strong>{nombre}</strong> asume la responsabilidad y el cuidado de las herramientas de trabajo y se compromete a utilizarlo estrictamente de manera laboral. No se podrá instalar programas ajenos a los que vienen preinstalados por defecto. Cabe mencionar que todo daño o desperfecto que se le ocasione a los equipos antes mencionados, será pagado por el receptor.
+</p>
+
+<br><br><br>
+
+<table style="border: none; text-align: center;">
+  <tr>
+    <td class="no-border"><strong>Entrega</strong></td>
+    <td class="no-border"><strong>Recibe</strong></td>
+  </tr>
+  <tr>
+    <td class="no-border">{entrega_nombre_firma}</td>
+    <td class="no-border">{recibe_nombre_firma}</td>
+  </tr>
+</table>

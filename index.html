@@ -1,0 +1,48 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Sistema de Inventario - Login</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-gray-100 flex items-center justify-center min-h-screen">
+
+  <div class="bg-white rounded-2xl shadow-lg flex w-full max-w-4xl overflow-hidden">
+    <!-- Panel izquierdo -->
+    <div class="w-1/2 bg-gradient-to-br from-blue-600 to-cyan-400 text-white p-10">
+      <h2 class="text-3xl font-bold mb-4">Sistema de Inventario</h2>
+      <p class="mb-6">Gestión completa de equipos de cómputo con tecnología QR</p>
+      <ul class="space-y-3">
+        <li class="flex items-center"><span class="mr-2">✅</span> Control de inventario</li>
+        <li class="flex items-center"><span class="mr-2">✅</span> Escaneo de códigos QR</li>
+        <li class="flex items-center"><span class="mr-2">✅</span> Accesibilidad</li>
+      </ul>
+    </div>
+    <!-- Panel derecho -->
+    <div class="w-1/2 p-10">
+      <h2 class="text-2xl font-bold text-gray-800 mb-2">Iniciar Sesión</h2>
+      <p class="text-gray-500 mb-6">Accede a tu cuenta para continuar</p>
+<form action="login.php" method="POST" class="space-y-4">
+  <div>
+    <label class="block text-sm font-medium text-gray-700">Usuario</label>
+    <input type="text" name="usuario" required class="w-full border border-gray-300 rounded px-3 py-2" />
+  </div>
+
+  <div>
+    <label class="block text-sm font-medium text-gray-700">Contraseña</label>
+    <input type="password" name="contrasena" required class="w-full border border-gray-300 rounded px-3 py-2" />
+  </div>
+
+  <div class="flex items-center justify-between">
+    <label class="flex items-center">
+      <input type="checkbox" name="recordarme" class="mr-2"> Recordarme
+    </label>
+    <a href="#" class="text-sm text-blue-600 hover:underline">¿Olvidaste tu contraseña?</a>
+  </div>
+
+  <button type="submit" class="w-full bg-blue-600 text-white py-2 rounded hover:bg-blue-700">
+    Ingresar
+  </button>
+</form>
+
