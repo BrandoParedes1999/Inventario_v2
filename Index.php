@@ -1,9 +1,25 @@
 <?php
-    include 'conexion.php';
+    require_once __DIR__ . '/config/session.php';
+    require_once __DIR__ . '/config/constants.php';
+    // Si ya hay sesión activa, redirigir al dashboard
+    if (Session::isLoggedIn()) {
+        header('Location: ' . BASE_URL . 'dashboard.php');
+        exit;
+    }
+
+    // Mensaje de error según parámetro GET
+    $errores = [
+        'sin_sesion'       => 'Tu sesión ha expirado. Inicia sesión nuevamente.',
+        'session_expirada' => 'Tu sesión fue cerrada por inactividad o desde otro dispositivo.',
+        'no_token'         => 'Sesión inválida. Por favor inicia sesión.',
+        'sin_permiso'      => 'No tienes permisos para acceder a esa sección.',
+    ];
+    $errorMsg = $errores[$_GET['error'] ?? ''] ?? '';
+    $expirada = isset($_GET['expirada']);
 ?>
 
 <!DOCTYPE html>
-<html lang="en">
+<html lang="es">
 
 <head>
 
@@ -16,13 +32,13 @@
     <title>Inventario</title>
 
     <!-- Custom fonts for this template-->
-    <link href="vendor/fontawesome-free/css/all.min.css" rel="stylesheet" type="text/css">
+    <link href="assets/vendor/fontawesome-free/css/all.min.css" rel="stylesheet" type="text/css">
     <link
         href="https://fonts.googleapis.com/css?family=Nunito:200,200i,300,300i,400,400i,600,600i,700,700i,800,800i,900,900i"
         rel="stylesheet">
 
     <!-- Custom styles for this template-->
-    <link href="css/sb-admin-2.min.css" rel="stylesheet">
+    <link href="assets/css/sb-admin-2.min.css" rel="stylesheet">
     <script>
     // Detectar navegación por botón "atrás" y forzar recarga real
     if (performance.navigation.type === 2) {
@@ -49,7 +65,7 @@
                             <div class="col-lg-6 d-flex flex-column align-items-center justify-content-center p-5" 
                         style="background: linear-gradient(135deg,rgb(99, 125, 240),rgb(75, 134, 162)); color: white; border-top-left-radius: .35rem; border-bottom-left-radius: .35rem;">
                            
-                            <img src="logo.jpeg" alt="Logo" class="mb-4 shadow-lg" style="max-width: 100px; border-radius: 50%;">
+                            <img src="assets/img/logo.jpeg" alt="Logo" class="mb-4 shadow-lg" style="max-width: 100px; border-radius: 50%;">
 
                             <h2 class="mb-3 fw-bold display-6 text-white text-center">Sistema de Inventario</h2>
 

@@ -1,21 +1,19 @@
 <?php
-session_start();
 
-// Eliminar todas las variables de sesión
-$_SESSION = [];
+require_once __DIR__ . '/config/session.php';
+require_once __DIR__ . '/config/constants.php';
 
-// Eliminar cookie de sesión (opcional, por seguridad extra)
-if (ini_get("session.use_cookies")) {
-    $params = session_get_cookie_params();
-    setcookie(session_name(), '', time() - 42000,
-        $params["path"], $params["domain"],
-        $params["secure"], $params["httponly"]
-    );
+// Limpiar token en BD antes de destruir sesión
+if (!empty($_SESSION['usuario_id'])) {
+    $uid  = (int) $_SESSION['usuario_id'];
+    $null = null;
+    $stmt = $conexion->prepare("UPDATE usuarios SET session_token = ? WHERE id = ?");
+    $stmt->bind_param("si", $null, $uid);
+    $stmt->execute();
+    $stmt->close();
 }
 
-// Destruir la sesión
-session_destroy();
+Session::destroy();
 
-// Redirigir al login
-header("Location: index.php");
-exit();
+header('Location: ' . BASE_URL . 'index.php');
+exit;
