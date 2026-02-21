@@ -22,7 +22,8 @@
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
 <script src="<?= BASE_ASSETS ?>vendor/jquery/jquery.min.js"></script>
 <script src="<?= BASE_ASSETS ?>vendor/jquery-easing/jquery.easing.min.js"></script>
-<script src="<?= BASE_ASSETS ?> js/sb-admin-2.min.js"></script>
+<!-- CORRECCIÓN: se eliminó el espacio antes de "js/" que impedía cargar el script -->
+<script src="<?= BASE_ASSETS ?>js/sb-admin-2.min.js"></script>
 
 <script>
 window.onpageshow = function (event) {

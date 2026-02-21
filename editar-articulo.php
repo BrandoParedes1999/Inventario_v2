@@ -1,87 +1,93 @@
 <?php
-include 'conexion.php';
+require_once __DIR__ . '/config/session.php';
+require_once __DIR__ . '/config/constants.php';
 
-if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-    $id = intval($_POST['id']);
-    $articulo = $_POST['articulo'];
-    $marca = $_POST['marca'];
-    $modelo = $_POST['modelo'];
-    $numero_serie = $_POST['numero_serie'];
-    $categoria = $_POST['categoria'];
-    $fecha_adquisicion = $_POST['fecha_adquisicion'];
+Session::checkAdmin();
 
-    // Obtener imagen actual y factura actual
-    $sql_actual = "SELECT imagen, factura FROM articulo WHERE id = $id";
-    $resultado_actual = $conexion->query($sql_actual);
-    $imagen_actual = '';
-    $factura_actual = '';
-    if ($resultado_actual && $resultado_actual->num_rows > 0) {
-        $fila = $resultado_actual->fetch_assoc();
-        $imagen_actual = $fila['imagen'];
-        $factura_actual = $fila['factura'];
+if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
+    header('Location: ' . BASE_URL . 'dashboard.php');
+    exit;
+}
+
+$id                = intval($_POST['id']               ?? 0);
+$articulo          = trim($_POST['articulo']           ?? '');
+$marca             = trim($_POST['marca']              ?? '');
+$modelo            = trim($_POST['modelo']             ?? '');
+$numero_serie      = trim($_POST['numero_serie']       ?? '');
+$categoria         = trim($_POST['categoria']          ?? '');
+$fecha_adquisicion = trim($_POST['fecha_adquisicion']  ?? '');
+
+if ($id <= 0 || empty($articulo)) {
+    header('Location: ' . BASE_URL . 'dashboard.php?error=datos_invalidos');
+    exit;
+}
+
+// ── Obtener datos actuales ────────────────────────────────────────
+$stmtSel = $conexion->prepare("SELECT imagen, factura FROM articulo WHERE id = ?");
+$stmtSel->bind_param("i", $id);
+$stmtSel->execute();
+$res = $stmtSel->get_result()->fetch_assoc();
+$stmtSel->close();
+
+if (!$res) {
+    header('Location: ' . BASE_URL . 'dashboard.php?error=no_encontrado');
+    exit;
+}
+
+$imagen_path  = $res['imagen'];
+$factura_path = $res['factura'];
+
+// ── Procesar nueva imagen ─────────────────────────────────────────
+if (isset($_FILES['imagen']) && $_FILES['imagen']['error'] === UPLOAD_ERR_OK) {
+    $tipo_mime     = mime_content_type($_FILES['imagen']['tmp_name']);
+    $mimes_validos = ['image/jpeg', 'image/png', 'image/jpg'];
+
+    if (!in_array($tipo_mime, $mimes_validos)) {
+        die("Solo se permiten imágenes JPG o PNG.");
     }
 
-    // =========================
-    // PROCESAR IMAGEN NUEVA
-    // =========================
-    $target_dir = "img/productos/";
-    if (isset($_FILES['imagen']) && $_FILES['imagen']['error'] == 0) {
-        $tipo_archivo = mime_content_type($_FILES['imagen']['tmp_name']);
-        $extensiones_validas = ['image/jpeg', 'image/png', 'image/jpg'];
+    $ext         = pathinfo($_FILES['imagen']['name'], PATHINFO_EXTENSION);
+    $nuevo       = uniqid() . '_' . time() . '.' . $ext;
+    $ruta_nueva  = 'uploads/imagenes/' . $nuevo;
 
-        if (!in_array($tipo_archivo, $extensiones_validas)) {
-            echo "Solo se permiten imágenes JPG o PNG.";
-            exit();
-        }
-
-        $nombre_original = basename($_FILES['imagen']['name']);
-        $nombre_limpio = preg_replace("/[^a-zA-Z0-9_\.-]/", "_", $nombre_original);
-        $ruta_imagen = $target_dir . uniqid() . '_' . $nombre_limpio;
-
-        if (!move_uploaded_file($_FILES['imagen']['tmp_name'], $ruta_imagen)) {
-            echo "Error al subir la nueva imagen";
-            $ruta_imagen = $imagen_actual;
-        }
-    } else {
-        $ruta_imagen = $imagen_actual;
-    }
-
-    // =========================
-    // PROCESAR FACTURA PDF
-    // =========================
-    $facturaPath = $factura_actual; // valor por defecto: mantener la anterior
-    if (isset($_FILES['factura']) && $_FILES['factura']['error'] == UPLOAD_ERR_OK) {
-        $factura_tmp = $_FILES['factura']['tmp_name'];
-        $factura_nombre = basename($_FILES['factura']['name']);
-        $factura_ext = strtolower(pathinfo($factura_nombre, PATHINFO_EXTENSION));
-
-        if ($factura_ext === "pdf") {
-            $nuevoNombre = uniqid("factura_") . "." . $factura_ext;
-            $rutaDestino = "facturas/" . $nuevoNombre;
-            if (move_uploaded_file($factura_tmp, $rutaDestino)) {
-                $facturaPath = $rutaDestino;
-            }
-        }
-    }
-
-    // =========================
-    // ACTUALIZAR EN BD
-    // =========================
-    $sql = "UPDATE articulo SET 
-                articulo = '$articulo',
-                marca = '$marca',
-                modelo = '$modelo',
-                numero_serie = '$numero_serie',
-                categoria = '$categoria',
-                factura = '$facturaPath',
-                fecha_adquisicion = '$fecha_adquisicion',
-                imagen = '$ruta_imagen'
-            WHERE id = $id";
-
-    if ($conexion->query($sql)) {
-        header("Location: dashboard.php?msg=actualizado");
-    } else {
-        echo "Error al actualizar: " . $conexion->error;
+    if (move_uploaded_file($_FILES['imagen']['tmp_name'], UPLOAD_IMAGENES . $nuevo)) {
+        $imagen_path = $ruta_nueva;
     }
 }
-?>
+
+// ── Procesar nueva factura PDF ────────────────────────────────────
+if (isset($_FILES['factura']) && $_FILES['factura']['error'] === UPLOAD_ERR_OK) {
+    $tipo_factura = mime_content_type($_FILES['factura']['tmp_name']);
+
+    if ($tipo_factura === 'application/pdf') {
+        $nuevo_pdf    = uniqid('factura_') . '.pdf';
+        $ruta_pdf     = 'uploads/facturas/' . $nuevo_pdf;
+
+        if (move_uploaded_file($_FILES['factura']['tmp_name'], UPLOAD_FACTURAS . $nuevo_pdf)) {
+            $factura_path = $ruta_pdf;
+        }
+    }
+}
+
+// ── Actualizar con prepared statement ────────────────────────────
+$stmtUpd = $conexion->prepare(
+    "UPDATE articulo
+     SET articulo = ?, marca = ?, modelo = ?, numero_serie = ?,
+         categoria = ?, factura = ?, fecha_adquisicion = ?, imagen = ?
+     WHERE id = ?"
+);
+$stmtUpd->bind_param(
+    "ssssssssi",
+    $articulo, $marca, $modelo, $numero_serie,
+    $categoria, $factura_path, $fecha_adquisicion, $imagen_path, $id
+);
+
+if ($stmtUpd->execute()) {
+    $stmtUpd->close();
+    header('Location: ' . BASE_URL . 'dashboard.php?msg=actualizado');
+    exit;
+} else {
+    $err = $stmtUpd->error;
+    $stmtUpd->close();
+    die("Error al actualizar: " . htmlspecialchars($err));
+}

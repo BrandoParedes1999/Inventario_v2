@@ -1,24 +1,26 @@
 <?php
 ob_start();
-include 'conexion.php';
-require_once('tcpdf/tcpdf.php');
-session_start();
+
+require_once __DIR__ . '/config/session.php';
+require_once __DIR__ . '/config/constants.php';
+// CORRECCIÓN: se eliminó session_start() manual (ya lo maneja Session::start())
+Session::check();
+
+require_once __DIR__ . '/tcpdf/tcpdf.php';
 
 function vacio($v) {
     return (!empty($v)) ? $v : 'N/A';
 }
 
-// Recibir datos
-$usuario_id = intval($_POST['usuario_id'] ?? 0);
+// ── Datos recibidos ───────────────────────────────────────────────
+$usuario_id   = intval($_POST['usuario_id'] ?? 0);
 $articulo_ids = $_POST['articulo_id'] ?? [];
 
 if (!is_array($articulo_ids)) {
     $articulo_ids = [$articulo_ids];
 }
 
-$articulos_validos = array_filter($articulo_ids, function($id) {
-    return intval($id) > 0;
-});
+$articulos_validos = array_filter($articulo_ids, fn($id) => intval($id) > 0);
 
 if (count($articulos_validos) === 0) {
     die("Error: Debe seleccionar al menos un artículo válido.");
@@ -28,32 +30,28 @@ $area   = vacio($_POST['area']   ?? '');
 $puesto = vacio($_POST['puesto'] ?? '');
 $fecha  = $_POST['fecha'] ?? date('Y-m-d');
 
-// --- Equipo de cómputo ---
+// ── Datos equipos ─────────────────────────────────────────────────
 $pc_marca  = vacio($_POST['pc_marca']  ?? '');
 $pc_modelo = vacio($_POST['pc_modelo'] ?? '');
 $pc_serie  = vacio($_POST['pc_serie']  ?? '');
 $pc_so     = vacio($_POST['pc_so']     ?? '');
 $pc_obs    = vacio($_POST['pc_obs']    ?? '');
 
-// --- Cargador PC ---
 $cargador_obs = vacio($_POST['cargador_obs'] ?? '');
 
-// --- Monitor ---
 $monitor_marca  = vacio($_POST['monitor_marca']  ?? '');
 $monitor_modelo = vacio($_POST['monitor_modelo'] ?? '');
 $monitor_serie  = vacio($_POST['monitor_serie']  ?? '');
 $monitor_obs    = vacio($_POST['monitor_obs']    ?? '');
 
-// --- Celular ---
-$cel_marca    = vacio($_POST['cel_marca']    ?? '');
-$cel_modelo   = vacio($_POST['cel_modelo']   ?? '');
-$cel_num_mod  = vacio($_POST['cel_num_mod']  ?? '');
-$cel_serie    = vacio($_POST['cel_serie']    ?? '');
-$cel_emei     = vacio($_POST['cel_emei']     ?? '');
-$cel_carga    = vacio($_POST['cel_carga']    ?? '');
-$cel_obs      = vacio($_POST['cel_obs']      ?? '');
+$cel_marca   = vacio($_POST['cel_marca']   ?? '');
+$cel_modelo  = vacio($_POST['cel_modelo']  ?? '');
+$cel_num_mod = vacio($_POST['cel_num_mod'] ?? '');
+$cel_serie   = vacio($_POST['cel_serie']   ?? '');
+$cel_emei    = vacio($_POST['cel_emei']    ?? '');
+$cel_carga   = vacio($_POST['cel_carga']   ?? '');
+$cel_obs     = vacio($_POST['cel_obs']     ?? '');
 
-// --- Teléfono fijo (NUEVO) ---
 $tel_marca     = vacio($_POST['tel_marca']     ?? '');
 $tel_modelo    = vacio($_POST['tel_modelo']    ?? '');
 $tel_serie     = vacio($_POST['tel_serie']     ?? '');
@@ -61,58 +59,56 @@ $tel_cargador  = vacio($_POST['tel_cargador']  ?? '');
 $tel_extension = vacio($_POST['tel_extension'] ?? '');
 $tel_obs       = vacio($_POST['tel_obs']       ?? '');
 
-// --- Artículos adicionales (NUEVO) ---
 $adic_cantidades = $_POST['adic_cantidad'] ?? [];
 $adic_articulos  = $_POST['adic_articulo'] ?? [];
 $adic_series     = $_POST['adic_serie']    ?? [];
 $adic_obs_arr    = $_POST['adic_obs']      ?? [];
 
-// Buscar usuario
-$usuario = $conexion->query("SELECT nombre_completo FROM usuarios WHERE id = $usuario_id")->fetch_assoc();
+// ── Buscar usuario ────────────────────────────────────────────────
+$stmtUsr = $conexion->prepare("SELECT nombre_completo FROM usuarios WHERE id = ?");
+$stmtUsr->bind_param("i", $usuario_id);
+$stmtUsr->execute();
+$usuario = $stmtUsr->get_result()->fetch_assoc();
+$stmtUsr->close();
 $nombre_usuario = $usuario['nombre_completo'] ?? 'Empleado';
 
-// -------------------------------------------------------
-// Función para generar tabla con imágenes de evidencia
-// -------------------------------------------------------
+// ── Función para generar tabla de imágenes ────────────────────────
 function generarTablaImagenes($imagenes) {
     if (empty($imagenes)) return 'N/A';
-    $html = '<table style="border: none; width: 100%; text-align: center;"><tr>';
+    $html = '<table style="border:none;width:100%;text-align:center;"><tr>';
     foreach ($imagenes as $img) {
         if (file_exists($img)) {
-            $html .= '<td style="border: none;"><img src="' . $img . '" width="140" height="100" style="border: 1px solid #000; margin: 5px;"></td>';
+            $html .= '<td style="border:none;"><img src="' . $img . '" width="140" height="100" style="border:1px solid #000;margin:5px;"></td>';
         }
     }
     $html .= '</tr></table>';
     return $html;
 }
 
-// -------------------------------------------------------
-// Guardar evidencias fotográficas
-// -------------------------------------------------------
+// ── Guardar evidencias ────────────────────────────────────────────
 $evidencias_guardadas = [
-    'pc_evidencia'         => [],
-    'monitor_evidencia'    => [],
-    'cel_evidencia'        => [],
-    'cargador_evidencia'   => [],
-    'tel_evidencia'        => [],   // NUEVO
-    'adicionales_evidencia'=> [],   // NUEVO
+    'pc_evidencia'          => [],
+    'monitor_evidencia'     => [],
+    'cel_evidencia'         => [],
+    'cargador_evidencia'    => [],
+    'tel_evidencia'         => [],
+    'adicionales_evidencia' => [],
 ];
 
 foreach ($evidencias_guardadas as $tipo => &$lista) {
     if (!empty($_FILES[$tipo]['name'][0])) {
-        $carpeta = 'evidencias/';
-        if (!is_dir($carpeta)) mkdir($carpeta, 0777, true);
+        $carpeta = UPLOAD_EVIDENCIAS;
         foreach ($_FILES[$tipo]['tmp_name'] as $i => $tmpName) {
             $nombre = basename($_FILES[$tipo]['name'][$i]);
             $ruta   = $carpeta . time() . "_$i" . "_" . $nombre;
             if (move_uploaded_file($tmpName, $ruta)) {
-                $lista[] = $ruta;
+                // Guardar ruta relativa para mostrar en PDF
+                $lista[] = 'uploads/evidencias/' . time() . "_$i" . "_" . $nombre;
             }
         }
     }
 }
 
-// Convertir evidencias a HTML
 $pc_evidencia_html          = generarTablaImagenes($evidencias_guardadas['pc_evidencia']);
 $monitor_evidencia_html     = generarTablaImagenes($evidencias_guardadas['monitor_evidencia']);
 $cel_evidencia_html         = generarTablaImagenes($evidencias_guardadas['cel_evidencia']);
@@ -120,9 +116,7 @@ $cargador_evidencia_html    = generarTablaImagenes($evidencias_guardadas['cargad
 $tel_evidencia_html         = generarTablaImagenes($evidencias_guardadas['tel_evidencia']);
 $adicionales_evidencia_html = generarTablaImagenes($evidencias_guardadas['adicionales_evidencia']);
 
-// -------------------------------------------------------
-// Generar filas HTML para artículos adicionales
-// -------------------------------------------------------
+// ── Filas artículos adicionales ───────────────────────────────────
 $articulos_adicionales_filas = '';
 if (!empty($adic_articulos)) {
     foreach ($adic_articulos as $i => $art) {
@@ -140,23 +134,23 @@ if (!empty($adic_articulos)) {
         </tr>";
     }
 }
-// Si no hay filas, poner fila vacía
 if (empty($articulos_adicionales_filas)) {
     $articulos_adicionales_filas = "<tr><td colspan='4' style='text-align:center;'>N/A</td></tr>";
 }
 
-// -------------------------------------------------------
-// Armar tabla HTML para los artículos del inventario
-// -------------------------------------------------------
-$articulosHTML  = '';
+// ── Procesar artículos del inventario ─────────────────────────────
+$articulosHTML   = '';
 $articulosInsert = [];
 
 foreach ($articulos_validos as $articulo_id) {
     $articulo_id = intval($articulo_id);
-    $stmtCheck   = $conexion->prepare("SELECT * FROM articulo WHERE id = ? AND estatus = 0");
-    $stmtCheck->bind_param("i", $articulo_id);
-    $stmtCheck->execute();
-    $result = $stmtCheck->get_result();
+    $estDisp     = ART_DISPONIBLE;
+
+    $stmtChk = $conexion->prepare("SELECT * FROM articulo WHERE id = ? AND estatus = ?");
+    $stmtChk->bind_param("ii", $articulo_id, $estDisp);
+    $stmtChk->execute();
+    $result = $stmtChk->get_result();
+    $stmtChk->close();
 
     if ($result->num_rows === 0) continue;
 
@@ -170,127 +164,112 @@ foreach ($articulos_validos as $articulo_id) {
             <td>" . htmlspecialchars($articulo['modelo'])       . "</td>
             <td>" . htmlspecialchars($articulo['numero_serie']) . "</td>
             <td>" . htmlspecialchars($articulo['categoria'])    . "</td>
-        </tr>
-    ";
+        </tr>";
 }
 
 if (empty($articulosInsert)) {
     die("Error: Ningún artículo válido para asignar.");
 }
 
-// -------------------------------------------------------
-// Cargar plantilla HTML y reemplazar variables
-// -------------------------------------------------------
-$html = file_get_contents('Responsiva_SWL.html');
+// ── Cargar plantilla HTML ─────────────────────────────────────────
+// CORRECCIÓN: ruta correcta a /templates/
+$templatePath = __DIR__ . '/templates/Responsiva_SWL.html';
+if (!file_exists($templatePath)) {
+    die("Error: No se encontró la plantilla de responsiva en $templatePath");
+}
+$html = file_get_contents($templatePath);
 
 $tablaHTML = "
-    <table border='1' cellpadding='4' style='border-collapse: collapse; width: 100%;'>
+    <table border='1' cellpadding='4' style='border-collapse:collapse;width:100%;'>
         <thead>
-            <tr style='background-color: #ddd;'>
+            <tr style='background-color:#ddd;'>
                 <th>Artículo</th><th>Marca</th><th>Modelo</th><th>No. Serie</th><th>Categoría</th>
             </tr>
         </thead>
         <tbody>$articulosHTML</tbody>
-    </table>
-";
+    </table>";
 
 $datos = [
-    // PC
-    '{pc_marca}'           => $pc_marca,
-    '{pc_modelo}'          => $pc_modelo,
-    '{pc_serie}'           => $pc_serie,
-    '{pc_so}'              => $pc_so,
-    '{pc_obs}'             => $pc_obs,
-    // Cargador PC
-    '{pc_cargador_marca}'  => $pc_marca,
-    '{pc_cargador_modelo}' => $pc_modelo,
-    '{cargador_obs}'       => $cargador_obs,
-    // Monitor
-    '{monitor_marca}'      => $monitor_marca,
-    '{monitor_modelo}'     => $monitor_modelo,
-    '{monitor_serie}'      => $monitor_serie,
-    '{monitor_obs}'        => $monitor_obs,
-    // Celular
-    '{cel_marca}'          => $cel_marca,
-    '{cel_modelo}'         => $cel_modelo,
-    '{cel_num_mod}'        => $cel_num_mod,
-    '{cel_serie}'          => $cel_serie,
-    '{cel_emei}'           => $cel_emei,
-    '{cel_carga}'          => $cel_carga,
-    '{cel_obs}'            => $cel_obs,
-    // Teléfono fijo (NUEVO)
-    '{tel_marca}'          => $tel_marca,
-    '{tel_modelo}'         => $tel_modelo,
-    '{tel_serie}'          => $tel_serie,
-    '{tel_cargador}'       => $tel_cargador,
-    '{tel_extension}'      => $tel_extension,
-    '{tel_obs}'            => $tel_obs,
-    // Datos generales
-    '{nombre}'             => $nombre_usuario,
-    '{area}'               => $area,
-    '{puesto}'             => $puesto,
-    '{fecha}'              => $fecha,
-    // Evidencias
+    '{pc_marca}'                    => $pc_marca,
+    '{pc_modelo}'                   => $pc_modelo,
+    '{pc_serie}'                    => $pc_serie,
+    '{pc_so}'                       => $pc_so,
+    '{pc_obs}'                      => $pc_obs,
+    '{pc_cargador_marca}'           => $pc_marca,
+    '{pc_cargador_modelo}'          => $pc_modelo,
+    '{cargador_obs}'                => $cargador_obs,
+    '{monitor_marca}'               => $monitor_marca,
+    '{monitor_modelo}'              => $monitor_modelo,
+    '{monitor_serie}'               => $monitor_serie,
+    '{monitor_obs}'                 => $monitor_obs,
+    '{cel_marca}'                   => $cel_marca,
+    '{cel_modelo}'                  => $cel_modelo,
+    '{cel_num_mod}'                 => $cel_num_mod,
+    '{cel_serie}'                   => $cel_serie,
+    '{cel_emei}'                    => $cel_emei,
+    '{cel_carga}'                   => $cel_carga,
+    '{cel_obs}'                     => $cel_obs,
+    '{tel_marca}'                   => $tel_marca,
+    '{tel_modelo}'                  => $tel_modelo,
+    '{tel_serie}'                   => $tel_serie,
+    '{tel_cargador}'                => $tel_cargador,
+    '{tel_extension}'               => $tel_extension,
+    '{tel_obs}'                     => $tel_obs,
+    '{nombre}'                      => htmlspecialchars($nombre_usuario),
+    '{area}'                        => htmlspecialchars($area),
+    '{puesto}'                      => htmlspecialchars($puesto),
+    '{fecha}'                       => htmlspecialchars($fecha),
     '{pc_evidencia}'                => $pc_evidencia_html,
     '{monitor_evidencia}'           => $monitor_evidencia_html,
     '{cel_evidencia}'               => $cel_evidencia_html,
     '{cargador_evidencia}'          => $cargador_evidencia_html,
-    '{tel_evidencia}'               => $tel_evidencia_html,            // NUEVO
-    '{adicionales_evidencia}'       => $adicionales_evidencia_html,    // NUEVO
-    '{articulos_adicionales_filas}' => $articulos_adicionales_filas,   // NUEVO
-    // Tabla de inventario
+    '{tel_evidencia}'               => $tel_evidencia_html,
+    '{adicionales_evidencia}'       => $adicionales_evidencia_html,
+    '{articulos_adicionales_filas}' => $articulos_adicionales_filas,
     '{tabla_articulos}'             => $tablaHTML,
-    // Firmas
     '{entrega_nombre_firma}'        => 'Ing. Juan Pérez',
-    '{recibe_nombre_firma}'         => $nombre_usuario,
+    '{recibe_nombre_firma}'         => htmlspecialchars($nombre_usuario),
 ];
 
 foreach ($datos as $clave => $valor) {
     $html = str_replace($clave, $valor, $html);
 }
 
-// -------------------------------------------------------
-// Crear PDF con TCPDF
-// -------------------------------------------------------
+// ── Generar PDF ───────────────────────────────────────────────────
 $pdf = new TCPDF();
 $pdf->AddPage();
 $pdf->writeHTML($html, true, false, true, false, '');
 
-$carpetaPDF = "responsivas/";
-if (!file_exists($carpetaPDF)) mkdir($carpetaPDF, 0777, true);
-
+$carpetaPDF    = UPLOAD_RESPONSIVAS;
 $nombreArchivo = 'responsiva_' . preg_replace('/\s+/', '_', $nombre_usuario) . '_' . date('Ymd_His') . '.pdf';
-$rutaRelativa  = $carpetaPDF . $nombreArchivo;
-$pdf->Output(__DIR__ . '/' . $rutaRelativa, 'F');
+$rutaAbsoluta  = $carpetaPDF . $nombreArchivo;
+$rutaRelativa  = 'uploads/responsivas/' . $nombreArchivo;
 
-// -------------------------------------------------------
-// Guardar evidencias y asignaciones en BD
-// -------------------------------------------------------
-$evidenciaJson = $conexion->real_escape_string(json_encode($evidencias_guardadas));
+$pdf->Output($rutaAbsoluta, 'F');
 
-foreach ($articulosInsert as $articulo_id) {
-    $stmtInsert = $conexion->prepare(
+// ── Guardar asignaciones en BD ────────────────────────────────────
+$evidenciaJson = json_encode($evidencias_guardadas);
+
+foreach ($articulosInsert as $aid) {
+    $stmtIns = $conexion->prepare(
         "INSERT INTO asignaciones (usuario_id, articulo_id, area, puesto, fecha, evidencia, pdf, estatus)
          VALUES (?, ?, ?, ?, ?, ?, ?, 1)"
     );
-    if (!$stmtInsert) die("Error en prepare: " . $conexion->error);
+    if (!$stmtIns) die("Error en prepare: " . $conexion->error);
 
-    $uid = $usuario_id;
-    $aid = $articulo_id;
-    $ar  = $area;
-    $pu  = $puesto;
-    $fe  = $fecha;
-    $ev  = $evidenciaJson;
-    $pf  = $rutaRelativa;
+    $stmtIns->bind_param("iisssss",
+        $usuario_id, $aid, $area, $puesto, $fecha, $evidenciaJson, $rutaRelativa
+    );
+    if (!$stmtIns->execute()) die("Error al insertar asignación: " . $stmtIns->error);
+    $stmtIns->close();
 
-    $stmtInsert->bind_param("iisssss", $uid, $aid, $ar, $pu, $fe, $ev, $pf);
-    if (!$stmtInsert->execute()) die("Error al insertar asignación: " . $stmtInsert->error);
-    $stmtInsert->close();
-
-    $conexion->query("UPDATE articulo SET estatus = 1 WHERE id = $aid");
+    $stmtEst = $conexion->prepare("UPDATE articulo SET estatus = ? WHERE id = ?");
+    $est     = ART_ASIGNADO; // 1
+    $stmtEst->bind_param("ii", $est, $aid);
+    $stmtEst->execute();
+    $stmtEst->close();
 }
 
 ob_end_clean();
-header("Location: $rutaRelativa");
+header("Location: " . BASE_URL . $rutaRelativa);
 exit;
-?>

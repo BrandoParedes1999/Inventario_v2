@@ -1,54 +1,60 @@
-<?php 
-include 'conexion.php';
+<?php
+// view-asignados.php — $conexion y Session disponibles desde dashboard.php
 
-$sql = "SELECT 
+$sql = "SELECT
             a.id AS articulo_id,
-            a.articulo,
-            a.marca,
-            a.modelo,
-            a.numero_serie,
-            a.categoria,
+            a.articulo, a.marca, a.modelo, a.numero_serie, a.categoria,
             u.id AS usuario_id,
             u.nombre_completo AS usuario,
-            s.fecha,
-            s.evidencia
+            s.fecha, s.evidencia
         FROM asignaciones s
-        INNER JOIN articulo a ON a.id = s.articulo_id
-        INNER JOIN usuarios u ON u.id = s.usuario_id
-        WHERE a.estatus = 1 AND s.fecha_devolucion IS NULL AND s.estatus = 1
+        INNER JOIN articulo  a ON a.id = s.articulo_id
+        INNER JOIN usuarios  u ON u.id = s.usuario_id
+        WHERE a.estatus = ? AND s.fecha_devolucion IS NULL AND s.estatus = ?
         ORDER BY s.fecha DESC";
 
-$resultado = $conexion->query($sql);
+$estAsig = ART_ASIGNADO;   // 1
+$asigAct = ASIG_ACTIVA;    // 1
+
+$stmtA = $conexion->prepare($sql);
+$stmtA->bind_param("ii", $estAsig, $asigAct);
+$stmtA->execute();
+$resultado = $stmtA->get_result();
+$stmtA->close();
 
 if (!$resultado) {
-    die("Error en consulta: " . $conexion->error);
+    echo "<tr><td colspan='8' class='text-center text-danger'>Error en la consulta.</td></tr>";
+    return;
 }
 
+$isAdmin = Session::isAdmin();
+
 if ($resultado->num_rows === 0) {
-    echo "<tr><td colspan='9' class='text-center'>No hay asignaciones registradas.</td></tr>";
+    echo "<tr><td colspan='8' class='text-center text-muted'>No hay asignaciones registradas.</td></tr>";
 } else {
     while ($row = $resultado->fetch_assoc()) {
         echo "<tr>";
-        echo "<td>" . htmlspecialchars($row['articulo']) . "</td>";
-        echo "<td>" . htmlspecialchars($row['marca']) . "</td>";
-        echo "<td>" . htmlspecialchars($row['modelo']) . "</td>";
-        echo "<td>" . htmlspecialchars($row['numero_serie']) . "</td>";
-        echo "<td>" . htmlspecialchars($row['categoria']) . "</td>";
-        echo "<td>" . htmlspecialchars($row['usuario']) . "</td>";
-        echo "<td>" . htmlspecialchars($row['fecha']) . "</td>";
-
+        echo "<td>" . htmlspecialchars($row['articulo'])      . "</td>";
+        echo "<td>" . htmlspecialchars($row['marca'])         . "</td>";
+        echo "<td>" . htmlspecialchars($row['modelo'])        . "</td>";
+        echo "<td>" . htmlspecialchars($row['numero_serie'])  . "</td>";
+        echo "<td>" . htmlspecialchars($row['categoria'])     . "</td>";
+        echo "<td>" . htmlspecialchars($row['usuario'])       . "</td>";
+        echo "<td>" . htmlspecialchars($row['fecha'])         . "</td>";
         echo "<td class='text-center'>";
-        if ($_SESSION['rol'] == 'Administrador') {
-            echo "<form method='POST' action='restaurar-articulo.php' onsubmit='return confirm(\"¿Deseas restaurar este artículo?\");'>";
-            echo "<input type='hidden' name='articulo_id' value='" . htmlspecialchars($row['articulo_id']) . "'>";
-            echo "<input type='hidden' name='usuario_id' value='" . htmlspecialchars($row['usuario_id']) . "'>";
-            echo "<button type='submit' class='btn btn-success btn-sm'>Restaurar</button>";
-            echo "</form>";
+
+        if ($isAdmin) {
+            echo "
+            <form method='POST' action='restaurar-articulo.php'
+                  onsubmit='return confirm(\"¿Deseas restaurar este artículo?\");'>
+              <input type='hidden' name='articulo_id' value='" . htmlspecialchars($row['articulo_id']) . "'>
+              <input type='hidden' name='usuario_id'  value='" . htmlspecialchars($row['usuario_id'])  . "'>
+              <button type='submit' class='btn btn-success btn-sm'>Restaurar</button>
+            </form>";
         } else {
             echo "<span class='text-muted'>Sin permisos</span>";
         }
-        echo "</td>";
 
-        echo "</tr>";
+        echo "</td></tr>";
     }
 }

@@ -1,91 +1,117 @@
 <?php
-include 'conexion.php';
+// cargar_usuarios.php — requiere $conexion ya inicializado vía config/session.php
 
 // Obtener usuarios activos
-$sql = "SELECT * FROM usuarios WHERE estatus = 0";
-$result = $conexion->query($sql);
+$sqlAct  = "SELECT * FROM usuarios WHERE estatus = ?";
+$stmtAct = $conexion->prepare($sqlAct);
+$est     = USR_ACTIVO; // 0
+$stmtAct->bind_param("i", $est);
+$stmtAct->execute();
+$result = $stmtAct->get_result();
+$stmtAct->close();
 ?>
 
 <?php
 if ($result && $result->num_rows > 0) {
-  while ($row = $result->fetch_assoc()) {
-    echo "<tr>
-            <td>{$row['nombre_completo']}</td>
-            <td>{$row['usuario']}</td>
-            <td>{$row['correo']}</td>
-            <td>{$row['rol']}</td>
-            <td>
-              <div style='display: flex; gap: 15px; justify-content: center;'>
-                <a class='icofont-ui-add text-info asignar-btn' style='cursor:pointer;'
-                   data-bs-toggle='modal' data-bs-target='#modalAsignarEquipo'
-                   data-usuario-id='{$row['id']}'
-                   data-usuario-nombre='{$row['nombre_completo']}'
-                   title='Asignar Equipos'></a>
-                <a class='icofont-ui-edit text-info' data-bs-toggle='modal' data-bs-target='#editarUsuario{$row['id']}' title='Editar Usuario'></a>
-                <a class='icofont-ui-delete text-danger' data-bs-toggle='modal' data-bs-target='#eliminarUsuario{$row['id']}' title='Eliminar Usuario'></a>
+    while ($row = $result->fetch_assoc()) {
+        echo "<tr>
+                <td>" . htmlspecialchars($row['nombre_completo']) . "</td>
+                <td>" . htmlspecialchars($row['usuario']) . "</td>
+                <td>" . htmlspecialchars($row['correo']) . "</td>
+                <td>" . htmlspecialchars($row['rol']) . "</td>
+                <td>
+                  <div style='display:flex;gap:15px;justify-content:center;'>
+                    <a class='icofont-ui-add text-info asignar-btn' style='cursor:pointer;'
+                       data-bs-toggle='modal' data-bs-target='#modalAsignarEquipo'
+                       data-usuario-id='" . htmlspecialchars($row['id']) . "'
+                       data-usuario-nombre='" . htmlspecialchars($row['nombre_completo']) . "'
+                       title='Asignar Equipos'></a>
+                    <a class='icofont-ui-edit text-info' data-bs-toggle='modal' data-bs-target='#editarUsuario{$row['id']}' title='Editar Usuario'></a>
+                    <a class='icofont-ui-delete text-danger' data-bs-toggle='modal' data-bs-target='#eliminarUsuario{$row['id']}' title='Eliminar Usuario'></a>
+                  </div>
+                </td>
+              </tr>";
+
+        // ── Modal Editar Usuario ──────────────────────────────────
+        // CORRECCIÓN: los valores del select ahora usan 'Administrador' (no 'Admin')
+        // para coincidir con el ENUM de la BD: ENUM('Administrador','Usuario')
+        $selAdmin   = ($row['rol'] === ROL_ADMIN)   ? 'selected' : '';
+        $selUsuario = ($row['rol'] === ROL_USUARIO)  ? 'selected' : '';
+
+        echo "
+        <div class='modal fade' id='editarUsuario{$row['id']}' tabindex='-1' aria-hidden='true'>
+          <div class='modal-dialog modal-dialog-centered'>
+            <form method='POST' action='editar_usuario.php'>
+              <input type='hidden' name='csrf_token' value='" . htmlspecialchars($_SESSION['csrf_token'] ?? '') . "'>
+              <div class='modal-content'>
+                <div class='modal-header'>
+                  <h5 class='modal-title'>Editar Usuario</h5>
+                  <button type='button' class='btn-close' data-bs-dismiss='modal'></button>
+                </div>
+                <div class='modal-body'>
+                  <input type='hidden' name='id' value='{$row['id']}'>
+                  <div class='mb-3'>
+                    <label>Nombre Completo</label>
+                    <input type='text' name='nombre_completo' class='form-control'
+                           value='" . htmlspecialchars($row['nombre_completo']) . "' required>
+                  </div>
+                  <div class='mb-3'>
+                    <label>Usuario</label>
+                    <input type='text' name='usuario' class='form-control'
+                           value='" . htmlspecialchars($row['usuario']) . "' required>
+                  </div>
+                  <div class='mb-3'>
+                    <label>Correo</label>
+                    <input type='email' name='correo' class='form-control'
+                           value='" . htmlspecialchars($row['correo']) . "' required>
+                  </div>
+                  <div class='mb-3'>
+                    <label>Rol</label>
+                    <select name='rol' class='form-control'>
+                      <option value='" . ROL_ADMIN   . "' $selAdmin>Administrador</option>
+                      <option value='" . ROL_USUARIO  . "' $selUsuario>Usuario</option>
+                    </select>
+                  </div>
+                  <div class='mb-3'>
+                    <label>Estatus</label>
+                    <select name='estatus' class='form-control'>
+                      <option value='" . USR_ACTIVO   . "' " . ($row['estatus'] == USR_ACTIVO   ? 'selected' : '') . ">Activo</option>
+                      <option value='" . USR_INACTIVO  . "' " . ($row['estatus'] == USR_INACTIVO  ? 'selected' : '') . ">Inactivo</option>
+                    </select>
+                  </div>
+                </div>
+                <div class='modal-footer'>
+                  <button type='submit' class='btn btn-primary'>Guardar Cambios</button>
+                </div>
               </div>
-            </td>
-          </tr>";
-
-    // Modal Editar Usuario
-    echo "
-    <div class='modal fade' id='editarUsuario{$row['id']}' tabindex='-1' aria-hidden='true'>
-      <div class='modal-dialog modal-dialog-centered'>
-        <form method='POST' action='editar_usuario.php'>
-          <div class='modal-content'>
-            <div class='modal-header'>
-              <h5 class='modal-title'>Editar Usuario</h5>
-              <button type='button' class='btn-close' data-bs-dismiss='modal'></button>
-            </div>
-            <div class='modal-body'>
-              <input type='hidden' name='id' value='{$row['id']}'>
-              <div class='mb-3'><label>Nombre Completo</label>
-                <input type='text' name='nombre_completo' class='form-control' value='{$row['nombre_completo']}' required></div>
-              <div class='mb-3'><label>Usuario</label>
-                <input type='text' name='usuario' class='form-control' value='{$row['usuario']}' required></div>
-              <div class='mb-3'><label>Correo</label>
-                <input type='email' name='correo' class='form-control' value='{$row['correo']}' required></div>
-              <div class='mb-3'><label>Rol</label>
-                <select name='rol' class='form-control'>
-                  <option value='Admin' "     . ($row['rol']=='Admin'     ? 'selected':'') . ">Admin</option>
-                  <option value='Usuario' "   . ($row['rol']=='Usuario'   ? 'selected':'') . ">Usuario</option>
-                </select></div>
-              <div class='mb-3'><label>Estatus</label>
-                <select name='estatus' class='form-control'>
-                  <option value='0' " . ($row['estatus']==0 ? 'selected':'') . ">Activo</option>
-                  <option value='1' " . ($row['estatus']==1 ? 'selected':'') . ">Inactivo</option>
-                </select></div>
-            </div>
-            <div class='modal-footer'>
-              <button type='submit' class='btn btn-primary'>Guardar Cambios</button>
-            </div>
+            </form>
           </div>
-        </form>
-      </div>
-    </div>";
+        </div>";
 
-    // Modal Eliminar Usuario
-    echo "
-    <div class='modal fade' id='eliminarUsuario{$row['id']}' tabindex='-1' aria-hidden='true'>
-      <div class='modal-dialog modal-dialog-centered'>
-        <form method='POST' action='eliminar_usuario.php'>
-          <div class='modal-content'>
-            <div class='modal-header bg-danger text-white'>
-              <h5 class='modal-title'>Eliminar Usuario</h5>
-              <button type='button' class='btn-close' data-bs-dismiss='modal'></button>
-            </div>
-            <div class='modal-body'>
-              <p>¿Estás seguro de que deseas eliminar al usuario <strong>{$row['nombre_completo']}</strong>?</p>
-              <input type='hidden' name='id' value='{$row['id']}'>
-            </div>
-            <div class='modal-footer'>
-              <button type='submit' class='btn btn-danger'>Eliminar</button>
-            </div>
+        // ── Modal Eliminar Usuario ────────────────────────────────
+        echo "
+        <div class='modal fade' id='eliminarUsuario{$row['id']}' tabindex='-1' aria-hidden='true'>
+          <div class='modal-dialog modal-dialog-centered'>
+            <form method='POST' action='eliminar_usuario.php'>
+              <input type='hidden' name='csrf_token' value='" . htmlspecialchars($_SESSION['csrf_token'] ?? '') . "'>
+              <div class='modal-content'>
+                <div class='modal-header bg-danger text-white'>
+                  <h5 class='modal-title'>Eliminar Usuario</h5>
+                  <button type='button' class='btn-close' data-bs-dismiss='modal'></button>
+                </div>
+                <div class='modal-body'>
+                  <p>¿Estás seguro de que deseas eliminar al usuario
+                     <strong>" . htmlspecialchars($row['nombre_completo']) . "</strong>?</p>
+                  <input type='hidden' name='id' value='{$row['id']}'>
+                </div>
+                <div class='modal-footer'>
+                  <button type='submit' class='btn btn-danger'>Eliminar</button>
+                </div>
+              </div>
+            </form>
           </div>
-        </form>
-      </div>
-    </div>";
-  }
+        </div>";
+    }
 }
 ?>
 </tbody>
@@ -104,10 +130,9 @@ if ($result && $result->num_rows > 0) {
         </div>
         <div class="modal-body p-3">
 
-          <!-- Campo oculto usuario -->
           <input type="hidden" name="usuario_id" id="usuarioIdModal">
 
-          <!-- ── Datos generales ── -->
+          <!-- Datos generales -->
           <div class="row mb-4">
             <div class="col-md-4">
               <label>Área</label>
@@ -123,7 +148,7 @@ if ($result && $result->num_rows > 0) {
             </div>
           </div>
 
-          <!-- ── EQUIPO DE CÓMPUTO ── -->
+          <!-- EQUIPO DE CÓMPUTO -->
           <div class="container mt-2">
             <div class="form-check form-switch mb-3">
               <input class="form-check-input seccion-switch" type="checkbox" id="switchPc" name="activar_pc" value="1">
@@ -135,9 +160,19 @@ if ($result && $result->num_rows > 0) {
                 <input list="listaPc" id="buscarSeriePc" class="form-control mb-3" autocomplete="off" placeholder="Escribe el N° de serie...">
                 <datalist id="listaPc">
                   <?php
-                  $pcs = $conexion->query("SELECT * FROM articulo WHERE estatus = 0 AND articulo IN ('Computadora','Laptop') AND categoria = 'Electrónico'");
+                  // CORRECCIÓN: se amplia el filtro de categoría para incluir variantes reales de la BD
+                  $pcs = $conexion->query(
+                      "SELECT * FROM articulo
+                       WHERE estatus = 0
+                       AND articulo IN ('Computadora','Laptop','Computador')"
+                  );
                   while ($pc = $pcs->fetch_assoc()) {
-                    echo "<option value='{$pc['numero_serie']}' data-id='{$pc['id']}' data-marca='{$pc['marca']}' data-modelo='{$pc['modelo']}'>{$pc['numero_serie']} - {$pc['marca']} {$pc['modelo']}</option>";
+                      echo "<option value='" . htmlspecialchars($pc['numero_serie']) . "'
+                                   data-id='" . $pc['id'] . "'
+                                   data-marca='" . htmlspecialchars($pc['marca']) . "'
+                                   data-modelo='" . htmlspecialchars($pc['modelo']) . "'>
+                                   " . htmlspecialchars($pc['numero_serie']) . " - " . htmlspecialchars($pc['marca']) . " " . htmlspecialchars($pc['modelo']) . "
+                            </option>";
                   }
                   ?>
                 </datalist>
@@ -165,7 +200,7 @@ if ($result && $result->num_rows > 0) {
             </div>
           </div>
 
-          <!-- ── MONITOR ── -->
+          <!-- MONITOR -->
           <div class="container mt-2">
             <div class="form-check form-switch mb-3">
               <input class="form-check-input seccion-switch" type="checkbox" id="switchMonitor" name="activar_monitor" value="1">
@@ -177,9 +212,12 @@ if ($result && $result->num_rows > 0) {
                 <input list="listaMonitor" id="buscarSerieMonitor" class="form-control mb-3" autocomplete="off" placeholder="Escribe el N° de serie...">
                 <datalist id="listaMonitor">
                   <?php
-                  $mons = $conexion->query("SELECT * FROM articulo WHERE estatus=0 AND articulo='Monitor'");
+                  $mons = $conexion->query("SELECT * FROM articulo WHERE estatus = 0 AND articulo = 'Monitor'");
                   while ($m = $mons->fetch_assoc()) {
-                    echo "<option value='{$m['numero_serie']}' data-id='{$m['id']}' data-marca='{$m['marca']}' data-modelo='{$m['modelo']}'>";
+                      echo "<option value='" . htmlspecialchars($m['numero_serie']) . "'
+                                   data-id='" . $m['id'] . "'
+                                   data-marca='" . htmlspecialchars($m['marca']) . "'
+                                   data-modelo='" . htmlspecialchars($m['modelo']) . "'>";
                   }
                   ?>
                 </datalist>
@@ -196,7 +234,7 @@ if ($result && $result->num_rows > 0) {
             </div>
           </div>
 
-          <!-- ── CELULAR ── -->
+          <!-- CELULAR -->
           <div class="container mt-2">
             <div class="form-check form-switch mb-3">
               <input class="form-check-input seccion-switch" type="checkbox" id="switchCel" name="activar_celular" value="1">
@@ -208,9 +246,12 @@ if ($result && $result->num_rows > 0) {
                 <input list="listaCel" id="buscarSerieCel" class="form-control mb-3" autocomplete="off" placeholder="Escribe el N° de serie...">
                 <datalist id="listaCel">
                   <?php
-                  $cels = $conexion->query("SELECT * FROM articulo WHERE estatus=0 AND articulo='Celular'");
+                  $cels = $conexion->query("SELECT * FROM articulo WHERE estatus = 0 AND articulo = 'Celular'");
                   while ($c = $cels->fetch_assoc()) {
-                    echo "<option value='{$c['numero_serie']}' data-id='{$c['id']}' data-marca='{$c['marca']}' data-modelo='{$c['modelo']}'>";
+                      echo "<option value='" . htmlspecialchars($c['numero_serie']) . "'
+                                   data-id='" . $c['id'] . "'
+                                   data-marca='" . htmlspecialchars($c['marca']) . "'
+                                   data-modelo='" . htmlspecialchars($c['modelo']) . "'>";
                   }
                   ?>
                 </datalist>
@@ -232,7 +273,7 @@ if ($result && $result->num_rows > 0) {
             </div>
           </div>
 
-          <!-- ── TELÉFONO FIJO ── -->
+          <!-- TELÉFONO FIJO -->
           <div class="container mt-2">
             <div class="form-check form-switch mb-3">
               <input class="form-check-input seccion-switch" type="checkbox" id="switchTel" name="activar_telefono" value="1">
@@ -257,11 +298,13 @@ if ($result && $result->num_rows > 0) {
             </div>
           </div>
 
-          <!-- ── ARTÍCULOS ADICIONALES ── -->
+          <!-- ARTÍCULOS ADICIONALES -->
           <div class="container mt-2">
             <div class="form-check form-switch mb-3">
               <input class="form-check-input seccion-switch" type="checkbox" id="switchAdicionales" name="activar_adicionales" value="1">
-              <label class="form-check-label fw-semibold" for="switchAdicionales">¿Agregar artículos adicionales? <span class="text-muted fw-normal">(Mouse, Teclado, Cables, etc.)</span></label>
+              <label class="form-check-label fw-semibold" for="switchAdicionales">
+                ¿Agregar artículos adicionales? <span class="text-muted fw-normal">(Mouse, Teclado, Cables, etc.)</span>
+              </label>
             </div>
             <div class="collapse mb-4" id="collapseAdicionales">
               <div class="card card-body p-3">
@@ -295,7 +338,7 @@ if ($result && $result->num_rows > 0) {
             </div>
           </div>
 
-          <!-- Tabla de artículos ya asignados al usuario -->
+          <!-- Artículos ya asignados al usuario -->
           <div id="tablaAsignados" class="mt-3 px-2"></div>
 
         </div><!-- /modal-body -->
@@ -313,9 +356,6 @@ if ($result && $result->num_rows > 0) {
 <script>
 document.addEventListener("DOMContentLoaded", function () {
 
-  // ─────────────────────────────────────────────────────
-  // 1. CONFIGURACIÓN DE TODOS LOS SWITCHES / COLAPSABLES
-  // ─────────────────────────────────────────────────────
   const secciones = [
     { sw: 'switchPc',          collapse: 'collapsePc' },
     { sw: 'switchMonitor',     collapse: 'collapseMonitor' },
@@ -330,9 +370,6 @@ document.addEventListener("DOMContentLoaded", function () {
     if (cb) cb.addEventListener('change', () => cb.checked ? sec.show() : sec.hide());
   });
 
-  // ─────────────────────────────────────────────────────
-  // 2. GESTIÓN DE articulo_id[] OCULTOS
-  // ─────────────────────────────────────────────────────
   function agregarArticuloInput(id) {
     if (!id) return;
     const form = document.getElementById('formAsignarEquipo');
@@ -350,17 +387,12 @@ document.addEventListener("DOMContentLoaded", function () {
     if (input) input.remove();
   }
 
-  // ─────────────────────────────────────────────────────
-  // 3. BÚSQUEDA POR N° SERIE (Autocomplete)
-  // ─────────────────────────────────────────────────────
   function setupBusqueda(inputId, listId, camposMap) {
     const input = document.getElementById(inputId);
     if (!input) return;
-
     input.addEventListener("input", function () {
-      const val   = this.value;
-      let found   = false;
-
+      const val = this.value;
+      let found = false;
       document.querySelectorAll(`#${listId} option`).forEach(opt => {
         if (opt.value === val) {
           Object.entries(camposMap).forEach(([campo, attr]) => {
@@ -372,7 +404,6 @@ document.addEventListener("DOMContentLoaded", function () {
           found = true;
         }
       });
-
       if (!found) {
         Object.keys(camposMap).forEach(id => {
           const el = document.getElementById(id);
@@ -397,14 +428,8 @@ document.addEventListener("DOMContentLoaded", function () {
     celMarca: 'marca', celModelo: 'modelo', celSerie: 'value'
   });
 
-  // ─────────────────────────────────────────────────────
-  // 4. FUNCIÓN LIMPIAR (completa, incluye nuevas secciones)
-  // ─────────────────────────────────────────────────────
   function limpiar() {
-    // Quitar inputs ocultos de artículo
     document.querySelectorAll('#formAsignarEquipo input[name="articulo_id[]"]').forEach(el => el.remove());
-
-    // Limpiar búsquedas de serie
     ['buscarSeriePc', 'buscarSerieMonitor', 'buscarSerieCel'].forEach(id => {
       const input = document.getElementById(id);
       if (input) {
@@ -415,19 +440,12 @@ document.addEventListener("DOMContentLoaded", function () {
         input.value = '';
       }
     });
-
-    // Resetear todos los switches y cerrar colapsables
     secciones.forEach(({ sw, collapse }) => {
       const cb  = document.getElementById(sw);
       const sec = new bootstrap.Collapse(document.getElementById(collapse), { toggle: false });
       if (cb)  cb.checked = false;
       if (sec) sec.hide();
     });
-
-    // Limpiar campos de readonly (PC, Monitor, Celular)
-    
-
-    // Limpiar tabla de artículos adicionales (dejar solo una fila vacía)
     const tbody = document.getElementById('adicionalesBody');
     if (tbody) {
       tbody.innerHTML = `
@@ -439,26 +457,17 @@ document.addEventListener("DOMContentLoaded", function () {
           <td><button type="button" class="btn btn-danger btn-sm" onclick="eliminarFilaAdic(this)">✕</button></td>
         </tr>`;
     }
-
-    // Limpiar tabla de artículos asignados
     const tablaAsig = document.getElementById("tablaAsignados");
     if (tablaAsig) tablaAsig.innerHTML = "";
-
-    // Limpiar campos de texto generales (area, puesto no se limpian - son intencionales)
   }
 
-  // ─────────────────────────────────────────────────────
-  // 5. EVENTOS DEL MODAL
-  // ─────────────────────────────────────────────────────
   document.querySelectorAll(".asignar-btn").forEach(btn => {
     btn.addEventListener("click", () => {
-      document.getElementById("usuarioIdModal").value          = btn.dataset.usuarioId;
+      document.getElementById("usuarioIdModal").value           = btn.dataset.usuarioId;
       document.getElementById("nombreUsuarioModal").textContent = btn.dataset.usuarioNombre;
-
       fetch(`get_articulos_asignados.php?usuario_id=${btn.dataset.usuarioId}`)
         .then(res => res.text())
         .then(html => document.getElementById("tablaAsignados").innerHTML = html);
-
       limpiar();
     });
   });
@@ -466,13 +475,8 @@ document.addEventListener("DOMContentLoaded", function () {
   const modalEl = document.getElementById("modalAsignarEquipo");
   modalEl.addEventListener("hidden.bs.modal", limpiar);
   modalEl.addEventListener("show.bs.modal",   limpiar);
+});
 
-}); // fin DOMContentLoaded
-
-
-// ─────────────────────────────────────────────────────
-// 6. FUNCIONES GLOBALES: Artículos Adicionales
-// ─────────────────────────────────────────────────────
 function agregarFilaAdicional() {
   const tbody = document.getElementById('adicionalesBody');
   const tr    = document.createElement('tr');

@@ -4,7 +4,7 @@
 define('IS_LOCAL', in_array($_SERVER['SERVER_NAME'] ?? '', ['localhost', '127.0.0.1', '::1']));
 
 define('BASE_PATH', dirname(__DIR__) . DIRECTORY_SEPARATOR);   // Raíz del proyecto
-define('BASE_URL',  IS_LOCAL ? 'http://localhost/inventario/' : 'https://tudominio.com/');
+define('BASE_URL', 'http://localhost/inventario_v2/');
 
 // ─── Carpetas de uploads ──────────────────────────────────────────
 define('UPLOAD_BASE',       BASE_PATH . 'uploads' . DIRECTORY_SEPARATOR);

@@ -4,7 +4,7 @@ require_once __DIR__ . '/config/constants.php';
 
 // Solo POST
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
-    header('Location: ' . BASE_URL . 'index.php');
+    header('Location: ' . BASE_URL . 'Index.php');
     exit;
 }
 
@@ -17,7 +17,7 @@ if (Session::isLoggedIn()) {
 // ─── Validar CSRF ─────────────────────────────────────────────────
 $csrfToken = $_POST['csrf_token'] ?? '';
 if (empty($csrfToken) || $csrfToken !== ($_SESSION['csrf_token'] ?? '')) {
-    header('Location: ' . BASE_URL . 'index.php?error=csrf');
+    header('Location: ' . BASE_URL . 'Index.php?error=csrf');
     exit;
 }
 unset($_SESSION['csrf_token']); // Token de un solo uso
