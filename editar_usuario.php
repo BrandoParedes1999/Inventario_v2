@@ -9,6 +9,14 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
     exit;
 }
 
+// ─── Validar CSRF ─────────────────────────────────────────────────
+// CORRECCIÓN: el handler no validaba el token aunque el modal sí lo enviaba
+$csrfToken = $_POST['csrf_token'] ?? '';
+if (empty($csrfToken) || $csrfToken !== ($_SESSION['csrf_token'] ?? '')) {
+    header('Location: ' . BASE_URL . 'usuarios.php?error=csrf');
+    exit;
+}
+
 $id      = intval($_POST['id']              ?? 0);
 $nombre  = trim($_POST['nombre_completo']   ?? '');
 $usuario = trim($_POST['usuario']           ?? '');
@@ -21,13 +29,10 @@ if ($id <= 0 || empty($nombre) || empty($usuario)) {
     exit;
 }
 
-// Validar que el rol sea uno de los permitidos
-// CORRECCIÓN: el modal enviaba 'Admin' en lugar de 'Administrador'
 if (!in_array($rol, [ROL_ADMIN, ROL_USUARIO], true)) {
     $rol = ROL_USUARIO;
 }
 
-// Validar estatus
 if (!in_array($estatus, [USR_ACTIVO, USR_INACTIVO], true)) {
     $estatus = USR_ACTIVO;
 }

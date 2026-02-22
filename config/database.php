@@ -1,4 +1,5 @@
 <?php
+//hola new
 // ─── Configuración ───────────────────────────────────────────────
 define('DB_HOST',    'localhost');
 define('DB_USER',    'root');

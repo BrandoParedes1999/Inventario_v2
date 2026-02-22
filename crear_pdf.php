@@ -3,8 +3,16 @@ ob_start();
 
 require_once __DIR__ . '/config/session.php';
 require_once __DIR__ . '/config/constants.php';
-// CORRECCIÓN: se eliminó session_start() manual (ya lo maneja Session::start())
+
 Session::check();
+
+// ─── Validar CSRF ─────────────────────────────────────────────────
+// CORRECCIÓN: este handler no validaba el token CSRF
+$csrfToken = $_POST['csrf_token'] ?? '';
+if (empty($csrfToken) || $csrfToken !== ($_SESSION['csrf_token'] ?? '')) {
+    header('Location: ' . BASE_URL . 'usuarios.php?error=csrf');
+    exit;
+}
 
 require_once __DIR__ . '/tcpdf/tcpdf.php';
 
@@ -77,8 +85,10 @@ function generarTablaImagenes($imagenes) {
     if (empty($imagenes)) return 'N/A';
     $html = '<table style="border:none;width:100%;text-align:center;"><tr>';
     foreach ($imagenes as $img) {
-        if (file_exists($img)) {
-            $html .= '<td style="border:none;"><img src="' . $img . '" width="140" height="100" style="border:1px solid #000;margin:5px;"></td>';
+        // CORRECCIÓN: usar ruta absoluta para TCPDF
+        $rutaAbs = BASE_PATH . $img;
+        if (file_exists($rutaAbs)) {
+            $html .= '<td style="border:none;"><img src="' . $rutaAbs . '" width="140" height="100" style="border:1px solid #000;margin:5px;"></td>';
         }
     }
     $html .= '</tr></table>';
@@ -86,6 +96,10 @@ function generarTablaImagenes($imagenes) {
 }
 
 // ── Guardar evidencias ────────────────────────────────────────────
+// CORRECCIÓN: race condition — time() se llamaba dos veces (al guardar el archivo
+// y al construir la ruta relativa), pudiendo devolver valores distintos si el
+// segundo cruza un límite de segundo.
+// Fix: fijar el timestamp UNA SOLA VEZ antes del bucle.
 $evidencias_guardadas = [
     'pc_evidencia'          => [],
     'monitor_evidencia'     => [],
@@ -97,17 +111,20 @@ $evidencias_guardadas = [
 
 foreach ($evidencias_guardadas as $tipo => &$lista) {
     if (!empty($_FILES[$tipo]['name'][0])) {
-        $carpeta = UPLOAD_EVIDENCIAS;
+        $timestamp = time(); // ← UN solo timestamp por lote de archivos
         foreach ($_FILES[$tipo]['tmp_name'] as $i => $tmpName) {
-            $nombre = basename($_FILES[$tipo]['name'][$i]);
-            $ruta   = $carpeta . time() . "_$i" . "_" . $nombre;
-            if (move_uploaded_file($tmpName, $ruta)) {
-                // Guardar ruta relativa para mostrar en PDF
-                $lista[] = 'uploads/evidencias/' . time() . "_$i" . "_" . $nombre;
+            $nombre      = preg_replace('/[^a-zA-Z0-9._-]/', '_', basename($_FILES[$tipo]['name'][$i]));
+            $nombreFinal = $timestamp . '_' . $i . '_' . $nombre;
+            $rutaAbs     = UPLOAD_EVIDENCIAS . $nombreFinal;
+            $rutaRel     = 'uploads/evidencias/' . $nombreFinal;
+
+            if (move_uploaded_file($tmpName, $rutaAbs)) {
+                $lista[] = $rutaRel; // ruta relativa para guardar en BD y PDF
             }
         }
     }
 }
+unset($lista);
 
 $pc_evidencia_html          = generarTablaImagenes($evidencias_guardadas['pc_evidencia']);
 $monitor_evidencia_html     = generarTablaImagenes($evidencias_guardadas['monitor_evidencia']);
@@ -172,10 +189,9 @@ if (empty($articulosInsert)) {
 }
 
 // ── Cargar plantilla HTML ─────────────────────────────────────────
-// CORRECCIÓN: ruta correcta a /templates/
 $templatePath = __DIR__ . '/templates/Responsiva_SWL.html';
 if (!file_exists($templatePath)) {
-    die("Error: No se encontró la plantilla de responsiva en $templatePath");
+    die("Error: No se encontró la plantilla en $templatePath");
 }
 $html = file_get_contents($templatePath);
 
@@ -188,6 +204,12 @@ $tablaHTML = "
         </thead>
         <tbody>$articulosHTML</tbody>
     </table>";
+
+// ── CORRECCIÓN: logo — TCPDF necesita ruta absoluta de sistema de archivos ──
+// La plantilla usa <img src="Logo_SWL.png"> (ruta relativa) → imagen en blanco.
+// Se reemplaza con la ruta absoluta antes de pasar a TCPDF.
+$logoAbsoluto = __DIR__ . '/Logo_SWL.png';
+$html = str_replace('src="Logo_SWL.png"', 'src="' . $logoAbsoluto . '"', $html);
 
 $datos = [
     '{pc_marca}'                    => $pc_marca,
@@ -240,14 +262,14 @@ $pdf = new TCPDF();
 $pdf->AddPage();
 $pdf->writeHTML($html, true, false, true, false, '');
 
-$carpetaPDF    = UPLOAD_RESPONSIVAS;
 $nombreArchivo = 'responsiva_' . preg_replace('/\s+/', '_', $nombre_usuario) . '_' . date('Ymd_His') . '.pdf';
-$rutaAbsoluta  = $carpetaPDF . $nombreArchivo;
+$rutaAbsoluta  = UPLOAD_RESPONSIVAS . $nombreArchivo;
 $rutaRelativa  = 'uploads/responsivas/' . $nombreArchivo;
 
 $pdf->Output($rutaAbsoluta, 'F');
 
 // ── Guardar asignaciones en BD ────────────────────────────────────
+// Nota: evidencia almacena el JSON completo → la columna ahora es TEXT (migracion_v2.sql)
 $evidenciaJson = json_encode($evidencias_guardadas);
 
 foreach ($articulosInsert as $aid) {
@@ -264,12 +286,12 @@ foreach ($articulosInsert as $aid) {
     $stmtIns->close();
 
     $stmtEst = $conexion->prepare("UPDATE articulo SET estatus = ? WHERE id = ?");
-    $est     = ART_ASIGNADO; // 1
+    $est     = ART_ASIGNADO;
     $stmtEst->bind_param("ii", $est, $aid);
     $stmtEst->execute();
     $stmtEst->close();
 }
 
 ob_end_clean();
-header("Location: " . BASE_URL . $rutaRelativa);
+header('Location: ' . BASE_URL . $rutaRelativa);
 exit;

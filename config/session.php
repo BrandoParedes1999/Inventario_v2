@@ -1,15 +1,12 @@
 <?php
 /**
- * config/session.php
- * Gestión unificada de sesiones y autenticación
+ * config/session.php — v3
  *
- * Reemplaza: sesion.php, Validacion.php, config/auth.php
- *
- * USO en páginas protegidas:
- *   require_once __DIR__ . '/../config/session.php';
- *   Session::check();                        // Solo verifica login
- *   Session::checkAdmin();                   // Solo para admins
- *   Session::check([ROL_ADMIN, ROL_USUARIO]);// Roles permitidos
+ * CORRECCIÓN CRÍTICA:
+ *   login.php hace unset($_SESSION['csrf_token']) al consumirlo (token de un solo uso).
+ *   Session::check() NO regeneraba el token después del login, lo que causaba que
+ *   TODOS los formularios POST fallaran con error=csrf.
+ *   Fix: al final de check(), si csrf_token no existe, se genera uno nuevo.
  */
 
 require_once __DIR__ . '/database.php';
@@ -25,17 +22,16 @@ class Session
         }
 
         session_set_cookie_params([
-            'lifetime' => 0,                        // Expira al cerrar navegador
+            'lifetime' => 0,
             'path'     => '/',
             'domain'   => '',
-            'secure'   => !IS_LOCAL,                // HTTPS en producción
-            'httponly' => true,                     // No accesible por JS
+            'secure'   => !IS_LOCAL,
+            'httponly' => true,
             'samesite' => 'Lax',
         ]);
 
         session_start();
 
-        // Regenerar ID para prevenir session fixation
         if (empty($_SESSION['_initiated'])) {
             session_regenerate_id(true);
             $_SESSION['_initiated'] = true;
@@ -47,31 +43,35 @@ class Session
     {
         self::start();
 
-        // Sin sesión → login
         if (empty($_SESSION['usuario'])) {
             self::destroy();
             self::redirectToLogin('sin_sesion');
         }
 
-        // Verificar token contra BD
         self::verifyToken();
 
-        // Verificar roles si se especificaron
         if (!empty($roles)) {
             self::checkRole($roles);
         }
 
-        // Headers anti-caché
+        // ── CORRECCIÓN CRÍTICA ────────────────────────────────────
+        // login.php hace unset($_SESSION['csrf_token']) después de validarlo.
+        // Sin esta línea todos los formularios de la aplicación quedan sin token
+        // y sus handlers rechazan el POST con error=csrf.
+        if (empty($_SESSION['csrf_token'])) {
+            $_SESSION['csrf_token'] = bin2hex(random_bytes(32));
+        }
+
         self::noCacheHeaders();
     }
 
-    // ─── Verificar que el rol sea Administrador ───────────────────
+    // ─── Solo administradores ─────────────────────────────────────
     public static function checkAdmin(): void
     {
         self::check([ROL_ADMIN]);
     }
 
-    // ─── Verificar token único en BD (anti session hijacking) ─────
+    // ─── Verificar token en BD ────────────────────────────────────
     private static function verifyToken(): void
     {
         global $conexion;
@@ -85,7 +85,7 @@ class Session
         $stmt      = $conexion->prepare($sql);
         $userId    = (int) $_SESSION['usuario_id'];
         $token     = (string) $_SESSION['token_sesion'];
-        $estActivo = USR_ACTIVO; // bind_param necesita variables, no constantes directas
+        $estActivo = USR_ACTIVO;
         $stmt->bind_param("isi", $userId, $token, $estActivo);
         $stmt->execute();
         $result = $stmt->get_result();
@@ -103,14 +103,13 @@ class Session
         $rolActual = $_SESSION['rol'] ?? '';
 
         if (!in_array($rolActual, $rolesPermitidos, true)) {
-            // Guardar flag para mostrar modal de acceso denegado
             $_SESSION['acceso_denegado'] = true;
             header('Location: ' . BASE_URL . 'dashboard.php');
             exit;
         }
     }
 
-    // ─── Helpers de sesión ────────────────────────────────────────
+    // ─── Helpers ──────────────────────────────────────────────────
     public static function get(string $key, $default = null)
     {
         self::start();
@@ -191,5 +190,4 @@ class Session
     }
 }
 
-// Iniciar sesión automáticamente al incluir este archivo
 Session::start();

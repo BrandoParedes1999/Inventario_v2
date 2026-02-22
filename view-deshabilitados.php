@@ -26,7 +26,8 @@ if (!$resultado) {
     return;
 }
 
-$isAdmin = Session::isAdmin();
+$isAdmin  = Session::isAdmin();
+$csrfMeta = htmlspecialchars($_SESSION['csrf_token'] ?? '');
 
 if ($resultado->num_rows > 0) {
     while ($row = $resultado->fetch_assoc()) {
@@ -52,13 +53,15 @@ if ($resultado->num_rows > 0) {
 
         echo "</td></tr>";
 
-        // Modal de restauración (solo admin)
+        // Modal restauración (solo admin)
         if ($isAdmin) {
+            // CORRECCIÓN: faltaba csrf_token en el formulario del modal
             echo "
             <div class='modal fade' id='restaurarModal{$row['id']}' tabindex='-1' aria-hidden='true'>
               <div class='modal-dialog modal-dialog-centered'>
                 <div class='modal-content'>
                   <form method='POST' action='restaurar-articulo.php'>
+                    <input type='hidden' name='csrf_token' value='$csrfMeta'>
                     <div class='modal-header'>
                       <h5 class='modal-title'>¿Restaurar artículo?</h5>
                       <button type='button' class='btn-close' data-bs-dismiss='modal'></button>

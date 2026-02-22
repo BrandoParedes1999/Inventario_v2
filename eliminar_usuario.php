@@ -9,6 +9,14 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
     exit;
 }
 
+// ─── Validar CSRF ─────────────────────────────────────────────────
+// CORRECCIÓN: el handler no validaba el token CSRF
+$csrfToken = $_POST['csrf_token'] ?? '';
+if (empty($csrfToken) || $csrfToken !== ($_SESSION['csrf_token'] ?? '')) {
+    header('Location: ' . BASE_URL . 'usuarios.php?error=csrf');
+    exit;
+}
+
 $id = intval($_POST['id'] ?? 0);
 
 if ($id <= 0) {
@@ -16,7 +24,6 @@ if ($id <= 0) {
     exit;
 }
 
-// No permitir que un admin se elimine a sí mismo
 if ($id === Session::userId()) {
     header('Location: ' . BASE_URL . 'usuarios.php?error=no_autoeliminar');
     exit;

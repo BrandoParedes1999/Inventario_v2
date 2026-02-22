@@ -9,6 +9,14 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST' || !isset($_POST['id'])) {
     exit;
 }
 
+// ─── Validar CSRF ─────────────────────────────────────────────────
+// CORRECCIÓN: el handler no validaba el token CSRF
+$csrfToken = $_POST['csrf_token'] ?? '';
+if (empty($csrfToken) || $csrfToken !== ($_SESSION['csrf_token'] ?? '')) {
+    header('Location: ' . BASE_URL . 'dashboard.php?error=csrf');
+    exit;
+}
+
 $id          = intval($_POST['id']);
 $motivo_baja = trim($_POST['motivo_baja'] ?? '');
 
@@ -47,7 +55,6 @@ $stmtBaja->bind_param(
 if ($stmtBaja->execute()) {
     $stmtBaja->close();
 
-    // Marcar artículo como deshabilitado
     $stmtUpd = $conexion->prepare("UPDATE articulo SET estatus = ? WHERE id = ?");
     $estatus  = ART_DESHABILITADO; // 2
     $stmtUpd->bind_param("ii", $estatus, $id);

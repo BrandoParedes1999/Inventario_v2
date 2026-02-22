@@ -9,6 +9,8 @@ $stmtAct->bind_param("i", $est);
 $stmtAct->execute();
 $result = $stmtAct->get_result();
 $stmtAct->close();
+
+$csrfMeta = htmlspecialchars($_SESSION['csrf_token'] ?? '');
 ?>
 
 <?php
@@ -33,8 +35,6 @@ if ($result && $result->num_rows > 0) {
               </tr>";
 
         // ── Modal Editar Usuario ──────────────────────────────────
-        // CORRECCIÓN: los valores del select ahora usan 'Administrador' (no 'Admin')
-        // para coincidir con el ENUM de la BD: ENUM('Administrador','Usuario')
         $selAdmin   = ($row['rol'] === ROL_ADMIN)   ? 'selected' : '';
         $selUsuario = ($row['rol'] === ROL_USUARIO)  ? 'selected' : '';
 
@@ -42,7 +42,7 @@ if ($result && $result->num_rows > 0) {
         <div class='modal fade' id='editarUsuario{$row['id']}' tabindex='-1' aria-hidden='true'>
           <div class='modal-dialog modal-dialog-centered'>
             <form method='POST' action='editar_usuario.php'>
-              <input type='hidden' name='csrf_token' value='" . htmlspecialchars($_SESSION['csrf_token'] ?? '') . "'>
+              <input type='hidden' name='csrf_token' value='$csrfMeta'>
               <div class='modal-content'>
                 <div class='modal-header'>
                   <h5 class='modal-title'>Editar Usuario</h5>
@@ -93,7 +93,7 @@ if ($result && $result->num_rows > 0) {
         <div class='modal fade' id='eliminarUsuario{$row['id']}' tabindex='-1' aria-hidden='true'>
           <div class='modal-dialog modal-dialog-centered'>
             <form method='POST' action='eliminar_usuario.php'>
-              <input type='hidden' name='csrf_token' value='" . htmlspecialchars($_SESSION['csrf_token'] ?? '') . "'>
+              <input type='hidden' name='csrf_token' value='$csrfMeta'>
               <div class='modal-content'>
                 <div class='modal-header bg-danger text-white'>
                   <h5 class='modal-title'>Eliminar Usuario</h5>
@@ -123,6 +123,8 @@ if ($result && $result->num_rows > 0) {
 <div class="modal fade" id="modalAsignarEquipo" tabindex="-1" aria-labelledby="modalAsignarEquipoLabel" aria-hidden="true">
   <div class="modal-dialog modal-xl">
     <form method="POST" action="crear_pdf.php" enctype="multipart/form-data" id="formAsignarEquipo">
+      <!-- CORRECCIÓN: faltaba el token CSRF en este formulario -->
+      <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($_SESSION['csrf_token'] ?? '') ?>">
       <div class="modal-content">
         <div class="modal-header bg-primary text-white">
           <h5 class="modal-title">Asignar Equipos a <span id="nombreUsuarioModal"></span></h5>
@@ -160,7 +162,6 @@ if ($result && $result->num_rows > 0) {
                 <input list="listaPc" id="buscarSeriePc" class="form-control mb-3" autocomplete="off" placeholder="Escribe el N° de serie...">
                 <datalist id="listaPc">
                   <?php
-                  // CORRECCIÓN: se amplia el filtro de categoría para incluir variantes reales de la BD
                   $pcs = $conexion->query(
                       "SELECT * FROM articulo
                        WHERE estatus = 0

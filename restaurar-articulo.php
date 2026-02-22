@@ -9,6 +9,14 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
     exit;
 }
 
+// ─── Validar CSRF ─────────────────────────────────────────────────
+// CORRECCIÓN: el handler no validaba el token CSRF
+$csrfToken = $_POST['csrf_token'] ?? '';
+if (empty($csrfToken) || $csrfToken !== ($_SESSION['csrf_token'] ?? '')) {
+    header('Location: ' . BASE_URL . 'dashboard.php?error=csrf');
+    exit;
+}
+
 $id                   = intval($_POST['articulo_id']         ?? 0);
 $motivo_restauracion  = trim($_POST['motivo_restauracion']   ?? 'Restauración sin motivo');
 $usuario_id           = intval($_POST['usuario_id']          ?? 0);
@@ -18,7 +26,7 @@ if ($id <= 0) {
     exit;
 }
 
-// ── Actualizar registro en bajas_articulos ────────────────────────
+// ── Actualizar bajas_articulos ────────────────────────────────────
 $stmtBaja = $conexion->prepare(
     "UPDATE bajas_articulos
      SET motivo_restauracion = ?, fecha_restauracion = NOW()
@@ -42,8 +50,8 @@ $stmtAsig->execute();
 $stmtAsig->close();
 
 // ── Cambiar artículo a disponible ─────────────────────────────────
-$estatus  = ART_DISPONIBLE; // 0
-$stmtUpd  = $conexion->prepare("UPDATE articulo SET estatus = ? WHERE id = ?");
+$estatus = ART_DISPONIBLE; // 0
+$stmtUpd = $conexion->prepare("UPDATE articulo SET estatus = ? WHERE id = ?");
 $stmtUpd->bind_param("ii", $estatus, $id);
 $stmtUpd->execute();
 $stmtUpd->close();

@@ -9,6 +9,14 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
     exit;
 }
 
+// ─── Validar CSRF ─────────────────────────────────────────────────
+// CORRECCIÓN: el handler no validaba el token CSRF
+$csrfToken = $_POST['csrf_token'] ?? '';
+if (empty($csrfToken) || $csrfToken !== ($_SESSION['csrf_token'] ?? '')) {
+    header('Location: ' . BASE_URL . 'dashboard.php?error=csrf');
+    exit;
+}
+
 $id                = intval($_POST['id']               ?? 0);
 $articulo          = trim($_POST['articulo']           ?? '');
 $marca             = trim($_POST['marca']              ?? '');
@@ -46,9 +54,9 @@ if (isset($_FILES['imagen']) && $_FILES['imagen']['error'] === UPLOAD_ERR_OK) {
         die("Solo se permiten imágenes JPG o PNG.");
     }
 
-    $ext         = pathinfo($_FILES['imagen']['name'], PATHINFO_EXTENSION);
-    $nuevo       = uniqid() . '_' . time() . '.' . $ext;
-    $ruta_nueva  = 'uploads/imagenes/' . $nuevo;
+    $ext        = pathinfo($_FILES['imagen']['name'], PATHINFO_EXTENSION);
+    $nuevo      = uniqid() . '_' . time() . '.' . $ext;
+    $ruta_nueva = 'uploads/imagenes/' . $nuevo;
 
     if (move_uploaded_file($_FILES['imagen']['tmp_name'], UPLOAD_IMAGENES . $nuevo)) {
         $imagen_path = $ruta_nueva;
@@ -57,19 +65,15 @@ if (isset($_FILES['imagen']) && $_FILES['imagen']['error'] === UPLOAD_ERR_OK) {
 
 // ── Procesar nueva factura PDF ────────────────────────────────────
 if (isset($_FILES['factura']) && $_FILES['factura']['error'] === UPLOAD_ERR_OK) {
-    $tipo_factura = mime_content_type($_FILES['factura']['tmp_name']);
-
-    if ($tipo_factura === 'application/pdf') {
-        $nuevo_pdf    = uniqid('factura_') . '.pdf';
-        $ruta_pdf     = 'uploads/facturas/' . $nuevo_pdf;
-
+    if (mime_content_type($_FILES['factura']['tmp_name']) === 'application/pdf') {
+        $nuevo_pdf = uniqid('factura_') . '.pdf';
         if (move_uploaded_file($_FILES['factura']['tmp_name'], UPLOAD_FACTURAS . $nuevo_pdf)) {
-            $factura_path = $ruta_pdf;
+            $factura_path = 'uploads/facturas/' . $nuevo_pdf;
         }
     }
 }
 
-// ── Actualizar con prepared statement ────────────────────────────
+// ── Actualizar ────────────────────────────────────────────────────
 $stmtUpd = $conexion->prepare(
     "UPDATE articulo
      SET articulo = ?, marca = ?, modelo = ?, numero_serie = ?,

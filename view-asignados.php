@@ -27,7 +27,8 @@ if (!$resultado) {
     return;
 }
 
-$isAdmin = Session::isAdmin();
+$isAdmin  = Session::isAdmin();
+$csrfMeta = htmlspecialchars($_SESSION['csrf_token'] ?? '');
 
 if ($resultado->num_rows === 0) {
     echo "<tr><td colspan='8' class='text-center text-muted'>No hay asignaciones registradas.</td></tr>";
@@ -44,11 +45,13 @@ if ($resultado->num_rows === 0) {
         echo "<td class='text-center'>";
 
         if ($isAdmin) {
+            // CORRECCIÓN: faltaba csrf_token en el formulario
             echo "
             <form method='POST' action='restaurar-articulo.php'
                   onsubmit='return confirm(\"¿Deseas restaurar este artículo?\");'>
-              <input type='hidden' name='articulo_id' value='" . htmlspecialchars($row['articulo_id']) . "'>
-              <input type='hidden' name='usuario_id'  value='" . htmlspecialchars($row['usuario_id'])  . "'>
+              <input type='hidden' name='csrf_token'   value='$csrfMeta'>
+              <input type='hidden' name='articulo_id'  value='" . htmlspecialchars($row['articulo_id']) . "'>
+              <input type='hidden' name='usuario_id'   value='" . htmlspecialchars($row['usuario_id'])  . "'>
               <button type='submit' class='btn btn-success btn-sm'>Restaurar</button>
             </form>";
         } else {
