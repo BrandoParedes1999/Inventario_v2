@@ -4,7 +4,7 @@ require_once __DIR__ . '/config/constants.php';
 
 // Solo POST
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
-    header('Location: ' . BASE_URL . 'Index.php');
+    header('Location: ' . BASE_URL . 'index.php');   // CORRECCIÓN: era 'Index.php'
     exit;
 }
 
@@ -17,13 +17,13 @@ if (Session::isLoggedIn()) {
 // ─── Validar CSRF ─────────────────────────────────────────────────
 $csrfToken = $_POST['csrf_token'] ?? '';
 if (empty($csrfToken) || $csrfToken !== ($_SESSION['csrf_token'] ?? '')) {
-    header('Location: ' . BASE_URL . 'Index.php?error=csrf');
+    header('Location: ' . BASE_URL . 'index.php?error=csrf');  // CORRECCIÓN: era 'Index.php'
     exit;
 }
 unset($_SESSION['csrf_token']); // Token de un solo uso
 
 // ─── Sanitizar inputs ─────────────────────────────────────────────
-$usuario   = trim($_POST['usuario']   ?? '');
+$usuario    = trim($_POST['usuario']    ?? '');
 $contrasena = trim($_POST['contrasena'] ?? '');
 
 if (empty($usuario) || empty($contrasena)) {
@@ -44,7 +44,6 @@ $resultado = $stmt->get_result();
 $stmt->close();
 
 if ($resultado->num_rows === 0) {
-    // No revelar si el usuario existe o no
     header('Location: ' . BASE_URL . 'index.php?error=credenciales');
     exit;
 }
@@ -68,7 +67,7 @@ $stmtToken->execute();
 $stmtToken->close();
 
 // ─── Registrar sesión ─────────────────────────────────────────────
-session_regenerate_id(true); // Prevenir session fixation
+session_regenerate_id(true);
 
 $_SESSION['usuario']      = $row['usuario'];
 $_SESSION['usuario_id']   = $row['id'];
