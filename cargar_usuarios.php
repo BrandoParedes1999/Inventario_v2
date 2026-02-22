@@ -10,6 +10,20 @@ $stmtAct->execute();
 $result = $stmtAct->get_result();
 $stmtAct->close();
 
+// ── Cargar artículos disponibles para la sección adicionales ──────
+// Se usan en el datalist del modal de asignación
+$articulosDisponibles = [];
+$sqlArts = "SELECT id, articulo, marca, modelo, numero_serie
+            FROM articulo
+            WHERE estatus = 0
+            ORDER BY articulo ASC, marca ASC";
+$resArts = $conexion->query($sqlArts);
+if ($resArts) {
+    while ($a = $resArts->fetch_assoc()) {
+        $articulosDisponibles[] = $a;
+    }
+}
+
 $csrfMeta = htmlspecialchars($_SESSION['csrf_token'] ?? '');
 ?>
 
@@ -23,13 +37,19 @@ if ($result && $result->num_rows > 0) {
                 <td>" . htmlspecialchars($row['rol']) . "</td>
                 <td>
                   <div style='display:flex;gap:15px;justify-content:center;'>
-                    <a class='icofont-ui-add text-info asignar-btn' style='cursor:pointer;'
+                    <a class='text-info asignar-btn' style='cursor:pointer;'
                        data-bs-toggle='modal' data-bs-target='#modalAsignarEquipo'
                        data-usuario-id='" . htmlspecialchars($row['id']) . "'
                        data-usuario-nombre='" . htmlspecialchars($row['nombre_completo']) . "'
-                       title='Asignar Equipos'></a>
-                    <a class='icofont-ui-edit text-info' data-bs-toggle='modal' data-bs-target='#editarUsuario{$row['id']}' title='Editar Usuario'></a>
-                    <a class='icofont-ui-delete text-danger' data-bs-toggle='modal' data-bs-target='#eliminarUsuario{$row['id']}' title='Eliminar Usuario'></a>
+                       title='Asignar Equipos'>
+                       <i class='fas fa-laptop-medical'></i>
+                    </a>
+                    <a class='text-info' data-bs-toggle='modal' data-bs-target='#editarUsuario{$row['id']}' title='Editar Usuario' style='cursor:pointer;'>
+                       <i class='fas fa-edit'></i>
+                    </a>
+                    <a class='text-danger' data-bs-toggle='modal' data-bs-target='#eliminarUsuario{$row['id']}' title='Eliminar Usuario' style='cursor:pointer;'>
+                       <i class='fas fa-trash-alt'></i>
+                    </a>
                   </div>
                 </td>
               </tr>";
@@ -118,12 +138,26 @@ if ($result && $result->num_rows > 0) {
 </table>
 
 <!-- ================================================================
+     DATALIST GLOBAL: Artículos del inventario disponibles
+     Se comparte entre todas las filas de adicionales
+     ================================================================ -->
+<datalist id="listaArticulosAdic">
+  <?php foreach ($articulosDisponibles as $art): ?>
+    <option
+      value="<?= htmlspecialchars($art['articulo'] . ' — ' . $art['marca'] . ' ' . $art['modelo']) ?>"
+      data-id="<?= $art['id'] ?>"
+      data-serie="<?= htmlspecialchars($art['numero_serie'] ?? 'N/A') ?>"
+      data-articulo="<?= htmlspecialchars($art['articulo']) ?>"
+    ></option>
+  <?php endforeach; ?>
+</datalist>
+
+<!-- ================================================================
      MODAL PRINCIPAL: Asignar Equipo
      ================================================================ -->
 <div class="modal fade" id="modalAsignarEquipo" tabindex="-1" aria-labelledby="modalAsignarEquipoLabel" aria-hidden="true">
   <div class="modal-dialog modal-xl">
     <form method="POST" action="crear_pdf.php" enctype="multipart/form-data" id="formAsignarEquipo">
-      <!-- CORRECCIÓN: faltaba el token CSRF en este formulario -->
       <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($_SESSION['csrf_token'] ?? '') ?>">
       <div class="modal-content">
         <div class="modal-header bg-primary text-white">
@@ -163,9 +197,7 @@ if ($result && $result->num_rows > 0) {
                 <datalist id="listaPc">
                   <?php
                   $pcs = $conexion->query(
-                      "SELECT * FROM articulo
-                       WHERE estatus = 0
-                       AND articulo IN ('Computadora','Laptop','Computador')"
+                      "SELECT * FROM articulo WHERE estatus = 0 AND articulo IN ('Computadora','Laptop','Computador')"
                   );
                   while ($pc = $pcs->fetch_assoc()) {
                       echo "<option value='" . htmlspecialchars($pc['numero_serie']) . "'
@@ -299,40 +331,42 @@ if ($result && $result->num_rows > 0) {
             </div>
           </div>
 
-          <!-- ARTÍCULOS ADICIONALES -->
+          <!-- ═══════════════════════════════════════════════════════
+               ARTÍCULOS ADICIONALES — con selector del inventario
+               ═══════════════════════════════════════════════════ -->
           <div class="container mt-2">
             <div class="form-check form-switch mb-3">
               <input class="form-check-input seccion-switch" type="checkbox" id="switchAdicionales" name="activar_adicionales" value="1">
               <label class="form-check-label fw-semibold" for="switchAdicionales">
-                ¿Agregar artículos adicionales? <span class="text-muted fw-normal">(Mouse, Teclado, Cables, etc.)</span>
+                ¿Agregar artículos adicionales?
+                <span class="text-muted fw-normal">(Reguladores, Accesorios, etc.)</span>
               </label>
             </div>
             <div class="collapse mb-4" id="collapseAdicionales">
               <div class="card card-body p-3">
-                <p class="text-muted small mb-3">Se consideran artículos adicionales: Mouse, Teclados, Cables, entre otros dispositivos periféricos.</p>
+                <p class="text-muted small mb-3">
+                  Selecciona el artículo del inventario — el N° de serie se completará automáticamente.
+                  También puedes escribir manualmente si el artículo no está en el inventario.
+                </p>
                 <div class="table-responsive">
                   <table class="table table-bordered table-sm" id="tablaAdicionales">
                     <thead class="table-secondary">
                       <tr>
-                        <th style="width:10%">Cantidad</th>
-                        <th style="width:35%">Artículo</th>
-                        <th style="width:25%">No. Serie</th>
+                        <th style="width:8%">Cant.</th>
+                        <th style="width:35%">Artículo <small class="text-muted">(inventario o libre)</small></th>
+                        <th style="width:25%">N° Serie</th>
                         <th>Observación</th>
                         <th style="width:5%"></th>
                       </tr>
                     </thead>
                     <tbody id="adicionalesBody">
-                      <tr>
-                        <td><input type="number" name="adic_cantidad[]" class="form-control form-control-sm" min="1" value="1"></td>
-                        <td><input type="text" name="adic_articulo[]" class="form-control form-control-sm" placeholder="Ej: Mouse, Teclado..."></td>
-                        <td><input type="text" name="adic_serie[]" class="form-control form-control-sm" placeholder="N/A"></td>
-                        <td><input type="text" name="adic_obs[]" class="form-control form-control-sm"></td>
-                        <td><button type="button" class="btn btn-danger btn-sm" onclick="eliminarFilaAdic(this)">✕</button></td>
-                      </tr>
+                      <!-- fila inicial generada por JS para que comparta la misma lógica -->
                     </tbody>
                   </table>
                 </div>
-                <button type="button" class="btn btn-outline-primary btn-sm mb-3" onclick="agregarFilaAdicional()">+ Agregar fila</button>
+                <button type="button" class="btn btn-outline-primary btn-sm mb-3" onclick="agregarFilaAdicional()">
+                  + Agregar fila
+                </button>
                 <label>Evidencia Fotográfica</label>
                 <input type="file" name="adicionales_evidencia[]" class="form-control" multiple accept="image/*">
               </div>
@@ -357,6 +391,7 @@ if ($result && $result->num_rows > 0) {
 <script>
 document.addEventListener("DOMContentLoaded", function () {
 
+  // ── Secciones con switch ──────────────────────────────────────────
   const secciones = [
     { sw: 'switchPc',          collapse: 'collapsePc' },
     { sw: 'switchMonitor',     collapse: 'collapseMonitor' },
@@ -371,6 +406,48 @@ document.addEventListener("DOMContentLoaded", function () {
     if (cb) cb.addEventListener('change', () => cb.checked ? sec.show() : sec.hide());
   });
 
+  // ── Inventario del datalist como mapa id→{serie, articulo} ────────
+  // Se construye una vez y se reutiliza en cada fila
+  window._inventarioMap = {};
+  document.querySelectorAll('#listaArticulosAdic option').forEach(opt => {
+    window._inventarioMap[opt.value] = {
+      id:       opt.dataset.id       || '',
+      serie:    opt.dataset.serie    || '',
+      articulo: opt.dataset.articulo || opt.value,
+    };
+  });
+
+  // ── Lógica de autorrelleno para ADICIONALES ───────────────────────
+  // Delegación de eventos: funciona tanto en filas existentes como nuevas
+  document.getElementById('adicionalesBody').addEventListener('input', function(e) {
+    if (!e.target.classList.contains('adic-articulo-input')) return;
+
+    const row      = e.target.closest('tr');
+    const serieEl  = row.querySelector('.adic-serie-input');
+    const idEl     = row.querySelector('.adic-id-input');
+    const badge    = row.querySelector('.adic-badge');
+    const val      = e.target.value.trim();
+
+    const found = window._inventarioMap[val];
+    if (found) {
+      serieEl.value        = found.serie;
+      serieEl.readOnly     = true;
+      idEl.value           = found.id;
+      if (badge) {
+        badge.textContent    = '✔ Del inventario';
+        badge.className      = 'adic-badge badge bg-success ms-1';
+      }
+    } else {
+      serieEl.readOnly     = false;
+      idEl.value           = '';
+      if (badge) {
+        badge.textContent    = val ? '✎ Manual' : '';
+        badge.className      = 'adic-badge badge bg-secondary ms-1';
+      }
+    }
+  });
+
+  // ── Artículos del inventario principal ────────────────────────────
   function agregarArticuloInput(id) {
     if (!id) return;
     const form = document.getElementById('formAsignarEquipo');
@@ -429,6 +506,7 @@ document.addEventListener("DOMContentLoaded", function () {
     celMarca: 'marca', celModelo: 'modelo', celSerie: 'value'
   });
 
+  // ── Limpiar modal ────────────────────────────────────────────────
   function limpiar() {
     document.querySelectorAll('#formAsignarEquipo input[name="articulo_id[]"]').forEach(el => el.remove());
     ['buscarSeriePc', 'buscarSerieMonitor', 'buscarSerieCel'].forEach(id => {
@@ -447,17 +525,8 @@ document.addEventListener("DOMContentLoaded", function () {
       if (cb)  cb.checked = false;
       if (sec) sec.hide();
     });
-    const tbody = document.getElementById('adicionalesBody');
-    if (tbody) {
-      tbody.innerHTML = `
-        <tr>
-          <td><input type="number" name="adic_cantidad[]" class="form-control form-control-sm" min="1" value="1"></td>
-          <td><input type="text" name="adic_articulo[]" class="form-control form-control-sm" placeholder="Ej: Mouse, Teclado..."></td>
-          <td><input type="text" name="adic_serie[]" class="form-control form-control-sm" placeholder="N/A"></td>
-          <td><input type="text" name="adic_obs[]" class="form-control form-control-sm"></td>
-          <td><button type="button" class="btn btn-danger btn-sm" onclick="eliminarFilaAdic(this)">✕</button></td>
-        </tr>`;
-    }
+    // Reiniciar tabla de adicionales con una sola fila en blanco
+    reiniciarAdicionalesBody();
     const tablaAsig = document.getElementById("tablaAsignados");
     if (tablaAsig) tablaAsig.innerHTML = "";
   }
@@ -476,19 +545,58 @@ document.addEventListener("DOMContentLoaded", function () {
   const modalEl = document.getElementById("modalAsignarEquipo");
   modalEl.addEventListener("hidden.bs.modal", limpiar);
   modalEl.addEventListener("show.bs.modal",   limpiar);
+
+  // Insertar la primera fila al cargar
+  reiniciarAdicionalesBody();
 });
+
+// ── Plantilla de fila de adicionales ─────────────────────────────────
+function plantillaFilaAdic() {
+  return `
+    <tr>
+      <td>
+        <input type="number" name="adic_cantidad[]"
+               class="form-control form-control-sm" min="1" value="1">
+      </td>
+      <td>
+        <!-- Campo visible: acepta texto libre O selección del datalist -->
+        <input type="text"
+               name="adic_articulo[]"
+               list="listaArticulosAdic"
+               class="form-control form-control-sm adic-articulo-input"
+               placeholder="Busca en inventario o escribe..."
+               autocomplete="off">
+        <!-- ID del artículo si viene del inventario (vacío si es manual) -->
+        <input type="hidden" name="adic_articulo_id[]" class="adic-id-input" value="">
+        <small><span class="adic-badge badge bg-secondary ms-1"></span></small>
+      </td>
+      <td>
+        <!-- Se rellena automáticamente al seleccionar del inventario -->
+        <input type="text"
+               name="adic_serie[]"
+               class="form-control form-control-sm adic-serie-input"
+               placeholder="N/A">
+      </td>
+      <td>
+        <input type="text" name="adic_obs[]"
+               class="form-control form-control-sm"
+               placeholder="Observación">
+      </td>
+      <td>
+        <button type="button" class="btn btn-danger btn-sm"
+                onclick="eliminarFilaAdic(this)">✕</button>
+      </td>
+    </tr>`;
+}
+
+function reiniciarAdicionalesBody() {
+  const tbody = document.getElementById('adicionalesBody');
+  if (tbody) tbody.innerHTML = plantillaFilaAdic();
+}
 
 function agregarFilaAdicional() {
   const tbody = document.getElementById('adicionalesBody');
-  const tr    = document.createElement('tr');
-  tr.innerHTML = `
-    <td><input type="number" name="adic_cantidad[]" class="form-control form-control-sm" min="1" value="1"></td>
-    <td><input type="text"   name="adic_articulo[]" class="form-control form-control-sm" placeholder="Ej: Mouse, Teclado..."></td>
-    <td><input type="text"   name="adic_serie[]"    class="form-control form-control-sm" placeholder="N/A"></td>
-    <td><input type="text"   name="adic_obs[]"      class="form-control form-control-sm"></td>
-    <td><button type="button" class="btn btn-danger btn-sm" onclick="eliminarFilaAdic(this)">✕</button></td>
-  `;
-  tbody.appendChild(tr);
+  if (tbody) tbody.insertAdjacentHTML('beforeend', plantillaFilaAdic());
 }
 
 function eliminarFilaAdic(btn) {

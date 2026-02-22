@@ -1,4 +1,9 @@
 <?php
+// ─── MOSTRAR ERRORES (quitar en producción) ────────────────────────
+ini_set('display_errors', 1);
+ini_set('display_startup_errors', 1);
+error_reporting(E_ALL);
+
 ob_start();
 
 require_once __DIR__ . '/config/session.php';
@@ -6,64 +11,89 @@ require_once __DIR__ . '/config/constants.php';
 
 Session::check();
 
-// ─── Validar CSRF ─────────────────────────────────────────────────
-// CORRECCIÓN: este handler no validaba el token CSRF
+// ─── CSRF ──────────────────────────────────────────────────────────
 $csrfToken = $_POST['csrf_token'] ?? '';
 if (empty($csrfToken) || $csrfToken !== ($_SESSION['csrf_token'] ?? '')) {
     header('Location: ' . BASE_URL . 'usuarios.php?error=csrf');
     exit;
 }
 
-require_once __DIR__ . 'lib/tcpdf/tcpdf.php';
+// ─── TCPDF: detectar ruta automáticamente ──────────────────────────
+$posiblesTcpdf = [
+    __DIR__ . '/tcpdf/tcpdf.php',
+    __DIR__ . '/lib/tcpdf/tcpdf.php',
+    __DIR__ . '/vendor/tecnickcom/tcpdf/tcpdf.php',
+    __DIR__ . '/TCPDF/tcpdf.php',
+];
+$tcpdfCargado = false;
+foreach ($posiblesTcpdf as $ruta) {
+    if (file_exists($ruta)) {
+        require_once $ruta;
+        $tcpdfCargado = true;
+        break;
+    }
+}
+if (!$tcpdfCargado) {
+    ob_end_clean();
+    die('<div style="font-family:Arial;padding:30px;background:#fff3cd;border:1px solid #ffc107;">'
+      . '<h3>&#9888; Error: No se encontró TCPDF</h3>'
+      . '<p>Se buscó en:</p><ul>'
+      . implode('', array_map(fn($r) => "<li><code>$r</code></li>", $posiblesTcpdf))
+      . '</ul><p>Verifica que la carpeta <strong>tcpdf</strong> esté dentro de <code>inventario_v2/</code>.</p>'
+      . '<a href="javascript:history.back()">← Regresar</a>'
+      . '</div>');
+}
 
 function vacio($v) {
     return (!empty($v)) ? $v : 'N/A';
 }
 
-// ── Datos recibidos ───────────────────────────────────────────────
-$usuario_id   = intval($_POST['usuario_id'] ?? 0);
-$articulo_ids = $_POST['articulo_id'] ?? [];
+// ─── 1. LEER ADICIONALES ANTES DE VALIDAR ──────────────────────────
+$adic_cantidades   = $_POST['adic_cantidad']    ?? [];
+$adic_articulos    = $_POST['adic_articulo']    ?? [];
+$adic_series       = $_POST['adic_serie']       ?? [];
+$adic_obs_arr      = $_POST['adic_obs']         ?? [];
+// IDs de los artículos del inventario seleccionados en adicionales
+// Vacío ('') si la fila fue escrita a mano
+$adic_articulo_ids = $_POST['adic_articulo_id'] ?? [];
 
+$adic_validos     = array_filter($adic_articulos, fn($a) => trim($a) !== '');
+$tieneAdicionales = !empty($_POST['activar_adicionales']) && !empty($adic_validos);
+
+// ─── 2. ARTÍCULOS DEL INVENTARIO (secciones PC/Monitor/Cel/Tel) ────
+$articulo_ids = $_POST['articulo_id'] ?? [];
 if (!is_array($articulo_ids)) {
     $articulo_ids = [$articulo_ids];
 }
-
 $articulos_validos = array_filter($articulo_ids, fn($id) => intval($id) > 0);
 
-// ── ¿Hay artículos adicionales completados? ────────────────────────
-$tieneAdicionales = !empty($_POST['activar_adicionales'])
-    && !empty(array_filter(
-        $_POST['adic_articulo'] ?? [],
-        fn($a) => trim($a) !== ''
-    ));
-
-// Si no hay artículos del inventario NI adicionales → error descriptivo
+// ─── 3. VALIDACIÓN COMBINADA ────────────────────────────────────────
 if (count($articulos_validos) === 0 && !$tieneAdicionales) {
     $seccionesActivas = array_filter([
-        !empty($_POST['activar_pc'])        ? 'PC/Laptop'     : null,
-        !empty($_POST['activar_monitor'])   ? 'Monitor'       : null,
-        !empty($_POST['activar_celular'])   ? 'Celular'       : null,
-        !empty($_POST['activar_telefono'])  ? 'Teléfono fijo' : null,
+        !empty($_POST['activar_pc'])       ? 'PC/Laptop'     : null,
+        !empty($_POST['activar_monitor'])  ? 'Monitor'       : null,
+        !empty($_POST['activar_celular'])  ? 'Celular'       : null,
+        !empty($_POST['activar_telefono']) ? 'Teléfono fijo' : null,
     ]);
     $hint = !empty($seccionesActivas)
-        ? 'Activaste: ' . implode(', ', $seccionesActivas)
-          . '. Para registrar un equipo del inventario debes '
-          . '<strong>seleccionar su N&deg; de serie desde la lista desplegable</strong> '
-          . '(escribe el serial y haz clic en la sugerencia).'
-        : 'Activa al menos una seccion y selecciona el N&deg; serie desde la lista, '
-          . 'o activa "Articulos adicionales" y agrega al menos una fila.';
+        ? 'Activaste: ' . implode(', ', $seccionesActivas) .
+          '. Para registrar un equipo debes <strong>seleccionar su N&deg; de serie desde la lista desplegable</strong>.'
+        : 'Activa al menos una sección y selecciona el N&deg; de serie, o activa "Artículos adicionales" y llena al menos una fila.';
+    ob_end_clean();
     die('<div style="font-family:Arial;padding:30px;">'
-        . '<h4 style="color:#c00">Error: No hay articulos para asignar</h4>'
-        . '<p>' . $hint . '</p>'
-        . '<a href="javascript:history.back()" style="color:blue">&larr; Regresar</a>'
-        . '</div>');
+      . '<h4 style="color:#c00;">Error: No hay artículos para asignar</h4>'
+      . '<p>' . $hint . '</p>'
+      . '<a href="javascript:history.back()" style="color:blue;">&larr; Regresar</a>'
+      . '</div>');
 }
 
-$area   = vacio($_POST['area']   ?? '');
-$puesto = vacio($_POST['puesto'] ?? '');
-$fecha  = $_POST['fecha'] ?? date('Y-m-d');
+// ─── DATOS GENERALES ────────────────────────────────────────────────
+$usuario_id = intval($_POST['usuario_id'] ?? 0);
+$area       = vacio($_POST['area']   ?? '');
+$puesto     = vacio($_POST['puesto'] ?? '');
+$fecha      = $_POST['fecha'] ?? date('Y-m-d');
 
-// ── Datos equipos ─────────────────────────────────────────────────
+// ─── DATOS EQUIPOS ──────────────────────────────────────────────────
 $pc_marca  = vacio($_POST['pc_marca']  ?? '');
 $pc_modelo = vacio($_POST['pc_modelo'] ?? '');
 $pc_serie  = vacio($_POST['pc_serie']  ?? '');
@@ -92,25 +122,19 @@ $tel_cargador  = vacio($_POST['tel_cargador']  ?? '');
 $tel_extension = vacio($_POST['tel_extension'] ?? '');
 $tel_obs       = vacio($_POST['tel_obs']       ?? '');
 
-$adic_cantidades = $_POST['adic_cantidad'] ?? [];
-$adic_articulos  = $_POST['adic_articulo'] ?? [];
-$adic_series     = $_POST['adic_serie']    ?? [];
-$adic_obs_arr    = $_POST['adic_obs']      ?? [];
-
-// ── Buscar usuario ────────────────────────────────────────────────
+// ─── BUSCAR USUARIO ─────────────────────────────────────────────────
 $stmtUsr = $conexion->prepare("SELECT nombre_completo FROM usuarios WHERE id = ?");
 $stmtUsr->bind_param("i", $usuario_id);
 $stmtUsr->execute();
-$usuario = $stmtUsr->get_result()->fetch_assoc();
+$usuarioRow = $stmtUsr->get_result()->fetch_assoc();
 $stmtUsr->close();
-$nombre_usuario = $usuario['nombre_completo'] ?? 'Empleado';
+$nombre_usuario = $usuarioRow['nombre_completo'] ?? 'Empleado';
 
-// ── Función para generar tabla de imágenes ────────────────────────
+// ─── FUNCIÓN: TABLA DE IMÁGENES ─────────────────────────────────────
 function generarTablaImagenes($imagenes) {
     if (empty($imagenes)) return 'N/A';
     $html = '<table style="border:none;width:100%;text-align:center;"><tr>';
     foreach ($imagenes as $img) {
-        // CORRECCIÓN: usar ruta absoluta para TCPDF
         $rutaAbs = BASE_PATH . $img;
         if (file_exists($rutaAbs)) {
             $html .= '<td style="border:none;"><img src="' . $rutaAbs . '" width="140" height="100" style="border:1px solid #000;margin:5px;"></td>';
@@ -120,11 +144,7 @@ function generarTablaImagenes($imagenes) {
     return $html;
 }
 
-// ── Guardar evidencias ────────────────────────────────────────────
-// CORRECCIÓN: race condition — time() se llamaba dos veces (al guardar el archivo
-// y al construir la ruta relativa), pudiendo devolver valores distintos si el
-// segundo cruza un límite de segundo.
-// Fix: fijar el timestamp UNA SOLA VEZ antes del bucle.
+// ─── GUARDAR EVIDENCIAS ─────────────────────────────────────────────
 $evidencias_guardadas = [
     'pc_evidencia'          => [],
     'monitor_evidencia'     => [],
@@ -136,15 +156,14 @@ $evidencias_guardadas = [
 
 foreach ($evidencias_guardadas as $tipo => &$lista) {
     if (!empty($_FILES[$tipo]['name'][0])) {
-        $timestamp = time(); // ← UN solo timestamp por lote de archivos
+        $timestamp = time();
         foreach ($_FILES[$tipo]['tmp_name'] as $i => $tmpName) {
             $nombre      = preg_replace('/[^a-zA-Z0-9._-]/', '_', basename($_FILES[$tipo]['name'][$i]));
             $nombreFinal = $timestamp . '_' . $i . '_' . $nombre;
             $rutaAbs     = UPLOAD_EVIDENCIAS . $nombreFinal;
             $rutaRel     = 'uploads/evidencias/' . $nombreFinal;
-
             if (move_uploaded_file($tmpName, $rutaAbs)) {
-                $lista[] = $rutaRel; // ruta relativa para guardar en BD y PDF
+                $lista[] = $rutaRel;
             }
         }
     }
@@ -158,81 +177,88 @@ $cargador_evidencia_html    = generarTablaImagenes($evidencias_guardadas['cargad
 $tel_evidencia_html         = generarTablaImagenes($evidencias_guardadas['tel_evidencia']);
 $adicionales_evidencia_html = generarTablaImagenes($evidencias_guardadas['adicionales_evidencia']);
 
-// ── Filas artículos adicionales ───────────────────────────────────
+// ─── FILAS ADICIONALES PARA EL PDF ──────────────────────────────────
+// El texto visible del artículo puede ser "Tipo — Marca Modelo" (del datalist)
+// o texto libre. Limpiamos el "— Marca Modelo" para el PDF mostrando solo el tipo.
 $articulos_adicionales_filas = '';
-if (!empty($adic_articulos)) {
-    foreach ($adic_articulos as $i => $art) {
-        if (empty(trim($art))) continue;
-        $cant  = htmlspecialchars($adic_cantidades[$i] ?? '1');
-        $art   = htmlspecialchars($art);
-        $serie = htmlspecialchars($adic_series[$i]    ?? 'N/A');
-        $obs   = htmlspecialchars($adic_obs_arr[$i]   ?? '');
-        $articulos_adicionales_filas .= "
-        <tr>
-          <td style='text-align:center;'>$cant</td>
-          <td>$art</td>
-          <td>$serie</td>
-          <td>$obs</td>
-        </tr>";
-    }
+foreach ($adic_articulos as $i => $art) {
+    $art = trim($art);
+    if ($art === '') continue;
+
+    // Si viene del datalist, el value tiene formato "Articulo — Marca Modelo"
+    // Extraemos solo la parte antes del " — " para el PDF
+    $artNombre = strpos($art, ' — ') !== false
+        ? trim(explode(' — ', $art)[0])
+        : $art;
+
+    $cant  = htmlspecialchars($adic_cantidades[$i] ?? '1');
+    $artH  = htmlspecialchars($artNombre);
+    $serie = htmlspecialchars($adic_series[$i]  ?? 'N/A');
+    $obs   = htmlspecialchars($adic_obs_arr[$i] ?? '');
+
+    $articulos_adicionales_filas .= "
+    <tr>
+      <td style='text-align:center;'>$cant</td>
+      <td>$artH</td>
+      <td>$serie</td>
+      <td>$obs</td>
+    </tr>";
 }
 if (empty($articulos_adicionales_filas)) {
     $articulos_adicionales_filas = "<tr><td colspan='4' style='text-align:center;'>N/A</td></tr>";
 }
 
-// ── Procesar artículos del inventario ─────────────────────────────
+// ─── PROCESAR ARTÍCULOS DEL INVENTARIO (PC, Monitor, Cel, Tel) ──────
 $articulosHTML   = '';
 $articulosInsert = [];
 
-foreach ($articulos_validos as $articulo_id) {
-    $articulo_id = intval($articulo_id);
-    $estDisp     = ART_DISPONIBLE;
+foreach ($articulos_validos as $art_id) {
+    $art_id  = intval($art_id);
+    $estDisp = ART_DISPONIBLE;
 
     $stmtChk = $conexion->prepare("SELECT * FROM articulo WHERE id = ? AND estatus = ?");
-    $stmtChk->bind_param("ii", $articulo_id, $estDisp);
+    $stmtChk->bind_param("ii", $art_id, $estDisp);
     $stmtChk->execute();
-    $result = $stmtChk->get_result();
+    $result  = $stmtChk->get_result();
     $stmtChk->close();
 
     if ($result->num_rows === 0) continue;
 
-    $articulo          = $result->fetch_assoc();
-    $articulosInsert[] = $articulo_id;
+    $artRow            = $result->fetch_assoc();
+    $articulosInsert[] = $art_id;
 
     $articulosHTML .= "
-        <tr>
-            <td>" . htmlspecialchars($articulo['articulo'])     . "</td>
-            <td>" . htmlspecialchars($articulo['marca'])        . "</td>
-            <td>" . htmlspecialchars($articulo['modelo'])       . "</td>
-            <td>" . htmlspecialchars($articulo['numero_serie']) . "</td>
-            <td>" . htmlspecialchars($articulo['categoria'])    . "</td>
-        </tr>";
+    <tr>
+        <td>" . htmlspecialchars($artRow['articulo'])     . "</td>
+        <td>" . htmlspecialchars($artRow['marca'])        . "</td>
+        <td>" . htmlspecialchars($artRow['modelo'])       . "</td>
+        <td>" . htmlspecialchars($artRow['numero_serie']) . "</td>
+        <td>" . htmlspecialchars($artRow['categoria'])    . "</td>
+    </tr>";
 }
 
 if (empty($articulosInsert)) {
-    die("Error: Ningún artículo válido para asignar.");
+    $articulosHTML = "<tr><td colspan='5' style='text-align:center;'>N/A</td></tr>";
 }
 
-// ── Cargar plantilla HTML ─────────────────────────────────────────
+// ─── CARGAR PLANTILLA ───────────────────────────────────────────────
 $templatePath = __DIR__ . '/templates/Responsiva_SWL.html';
 if (!file_exists($templatePath)) {
-    die("Error: No se encontró la plantilla en $templatePath");
+    ob_end_clean();
+    die("Error: No se encontró la plantilla en <code>$templatePath</code>");
 }
 $html = file_get_contents($templatePath);
 
 $tablaHTML = "
-    <table border='1' cellpadding='4' style='border-collapse:collapse;width:100%;'>
-        <thead>
-            <tr style='background-color:#ddd;'>
-                <th>Artículo</th><th>Marca</th><th>Modelo</th><th>No. Serie</th><th>Categoría</th>
-            </tr>
-        </thead>
-        <tbody>$articulosHTML</tbody>
-    </table>";
+<table border='1' cellpadding='4' style='border-collapse:collapse;width:100%;'>
+    <thead>
+        <tr style='background-color:#ddd;'>
+            <th>Artículo</th><th>Marca</th><th>Modelo</th><th>No. Serie</th><th>Categoría</th>
+        </tr>
+    </thead>
+    <tbody>$articulosHTML</tbody>
+</table>";
 
-// ── CORRECCIÓN: logo — TCPDF necesita ruta absoluta de sistema de archivos ──
-// La plantilla usa <img src="Logo_SWL.png"> (ruta relativa) → imagen en blanco.
-// Se reemplaza con la ruta absoluta antes de pasar a TCPDF.
 $logoAbsoluto = __DIR__ . '/Logo_SWL.png';
 $html = str_replace('src="Logo_SWL.png"', 'src="' . $logoAbsoluto . '"', $html);
 
@@ -282,7 +308,7 @@ foreach ($datos as $clave => $valor) {
     $html = str_replace($clave, $valor, $html);
 }
 
-// ── Generar PDF ───────────────────────────────────────────────────
+// ─── GENERAR PDF ────────────────────────────────────────────────────
 $pdf = new TCPDF();
 $pdf->AddPage();
 $pdf->writeHTML($html, true, false, true, false, '');
@@ -293,28 +319,89 @@ $rutaRelativa  = 'uploads/responsivas/' . $nombreArchivo;
 
 $pdf->Output($rutaAbsoluta, 'F');
 
-// ── Guardar asignaciones en BD ────────────────────────────────────
-// Nota: evidencia almacena el JSON completo → la columna ahora es TEXT (migracion_v2.sql)
+// ─── GUARDAR EN BASE DE DATOS ────────────────────────────────────────
 $evidenciaJson = json_encode($evidencias_guardadas);
 
+// ── A. Artículos del inventario principal → tabla asignaciones ──────
 foreach ($articulosInsert as $aid) {
     $stmtIns = $conexion->prepare(
-        "INSERT INTO asignaciones (usuario_id, articulo_id, area, puesto, fecha, evidencia, pdf, estatus)
+        "INSERT INTO asignaciones
+             (usuario_id, articulo_id, area, puesto, fecha, evidencia, pdf, estatus)
          VALUES (?, ?, ?, ?, ?, ?, ?, 1)"
     );
-    if (!$stmtIns) die("Error en prepare: " . $conexion->error);
-
-    $stmtIns->bind_param("iisssss",
+    if (!$stmtIns) {
+        ob_end_clean();
+        die('Error prepare asignaciones: ' . htmlspecialchars($conexion->error));
+    }
+    $stmtIns->bind_param('iisssss',
         $usuario_id, $aid, $area, $puesto, $fecha, $evidenciaJson, $rutaRelativa
     );
-    if (!$stmtIns->execute()) die("Error al insertar asignación: " . $stmtIns->error);
+    if (!$stmtIns->execute()) {
+        ob_end_clean();
+        die('Error execute asignaciones: ' . htmlspecialchars($stmtIns->error));
+    }
     $stmtIns->close();
 
+    // Marcar artículo como asignado
     $stmtEst = $conexion->prepare("UPDATE articulo SET estatus = ? WHERE id = ?");
-    $est     = ART_ASIGNADO;
-    $stmtEst->bind_param("ii", $est, $aid);
+    $est      = ART_ASIGNADO;
+    $stmtEst->bind_param('ii', $est, $aid);
     $stmtEst->execute();
     $stmtEst->close();
+}
+
+// ── B. Artículos adicionales → tabla asignaciones_adicionales ───────
+if ($tieneAdicionales) {
+    $stmtAdic = $conexion->prepare(
+        "INSERT INTO asignaciones_adicionales
+             (pdf_lote, usuario_id, cantidad, articulo, numero_serie, observacion)
+         VALUES (?, ?, ?, ?, ?, ?)"
+    );
+    if (!$stmtAdic) {
+        ob_end_clean();
+        die('Error prepare adicionales: ' . htmlspecialchars($conexion->error));
+    }
+
+    // IDs de artículos del inventario usados en adicionales (para marcar como asignados)
+    $idsAdicInventario = [];
+
+    foreach ($adic_articulos as $i => $art) {
+        $art = trim($art);
+        if ($art === '') continue;
+
+        // Nombre limpio para guardar en BD (sin "— Marca Modelo")
+        $artNombre = strpos($art, ' — ') !== false
+            ? trim(explode(' — ', $art)[0])
+            : $art;
+
+        $cant  = max(1, intval($adic_cantidades[$i] ?? 1));
+        $serie = trim($adic_series[$i]  ?? '') ?: 'N/A';
+        $obs   = trim($adic_obs_arr[$i] ?? '');
+
+        $stmtAdic->bind_param('siisss',
+            $rutaRelativa, $usuario_id, $cant, $artNombre, $serie, $obs
+        );
+        if (!$stmtAdic->execute()) {
+            error_log('crear_pdf adicionales execute: ' . $stmtAdic->error);
+        }
+
+        // Registrar ID de inventario si viene del catálogo
+        $adid = intval($adic_articulo_ids[$i] ?? 0);
+        if ($adid > 0) {
+            $idsAdicInventario[] = $adid;
+        }
+    }
+    $stmtAdic->close();
+
+    // Marcar artículos adicionales del inventario como asignados
+    foreach ($idsAdicInventario as $adid) {
+        $stmtEst2 = $conexion->prepare("UPDATE articulo SET estatus = ? WHERE id = ? AND estatus = ?");
+        $estAsig  = ART_ASIGNADO;   // 1
+        $estDisp  = ART_DISPONIBLE; // 0
+        $stmtEst2->bind_param('iii', $estAsig, $adid, $estDisp);
+        $stmtEst2->execute();
+        $stmtEst2->close();
+    }
 }
 
 ob_end_clean();
