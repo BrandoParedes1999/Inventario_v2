@@ -1,66 +1,82 @@
 <?php
-// view-table.php — $conexion disponible desde dashboard.php
+// view-table.php — $conexion y $_SESSION ya disponibles desde config/session.php cargado en dashboard.php
 
-$stmtDisp = $conexion->prepare("SELECT * FROM articulo WHERE estatus = 0 ORDER BY created_at DESC");
+$sqlDisp   = "SELECT * FROM articulo WHERE estatus = ?";
+$stmtDisp  = $conexion->prepare($sqlDisp);
+$estDisp   = ART_DISPONIBLE; // 0
+$stmtDisp->bind_param("i", $estDisp);
 $stmtDisp->execute();
 $result = $stmtDisp->get_result();
 $stmtDisp->close();
 
-$isAdmin = ($_SESSION['rol'] ?? '') === 'Administrador';
+$isAdmin  = Session::isAdmin();
+$csrfMeta = htmlspecialchars($_SESSION['csrf_token'] ?? '');
 
 if ($result && $result->num_rows > 0) {
     while ($row = $result->fetch_assoc()) {
         echo "<tr class='text-center'>";
-        echo "<td>" . htmlspecialchars($row['nombre'])            . "</td>";
-        echo "<td>" . htmlspecialchars($row['marca'] ?? '')       . "</td>";
-        echo "<td>" . htmlspecialchars($row['modelo'] ?? '')      . "</td>";
-        echo "<td>" . htmlspecialchars($row['numero_serie'] ?? '') . "</td>";
-        echo "<td>" . htmlspecialchars($row['categoria'] ?? '')   . "</td>";
+        echo "<td>" . htmlspecialchars($row['articulo'])    . "</td>";
+        echo "<td>" . htmlspecialchars($row['marca'])       . "</td>";
+        echo "<td>" . htmlspecialchars($row['modelo'])      . "</td>";
+        echo "<td>" . htmlspecialchars($row['numero_serie']). "</td>";
+        echo "<td>" . htmlspecialchars($row['categoria'])   . "</td>";
 
-        // ── Factura ──────────────────────────────────────────────
+        // ── Columna Factura ───────────────────────────────────────
         $factura = $row['factura'] ?? '';
-        $exFact  = !empty($factura) && file_exists(__DIR__ . '/' . $factura);
+        $exFact  = !empty($factura) && file_exists(BASE_PATH . $factura);
+
         echo "<td><div style='display:flex;align-items:center;gap:10px;justify-content:center;'>";
         if ($exFact) {
-            echo "<a href='" . htmlspecialchars($factura) . "' target='_blank'
-                     class='text-secondary' style='text-decoration:none;'>
-                     <i class='fas fa-file-pdf'></i> PDF</a>";
+            echo "<a class='icofont-ui-file icofont-1x text-secondary'
+                     href='" . htmlspecialchars(BASE_URL . $factura) . "'
+                     target='_blank' style='text-decoration:none;'> PDF</a>";
         } else {
-            echo "<a href='#' data-bs-toggle='modal'
+            echo "<a class='icofont-ui-file icofont-1x text-muted' href='#'
+                     data-bs-toggle='modal'
                      data-bs-target='#modalNoPDF{$row['id']}'
-                     class='text-muted' style='text-decoration:none;'>
-                     <i class='fas fa-file-pdf'></i> PDF</a>";
+                     style='text-decoration:none;'> PDF</a>";
         }
         echo "</div></td>";
 
-        echo "<td>" . htmlspecialchars($row['fecha_adquisicion'] ?? '') . "</td>";
+        echo "<td>" . htmlspecialchars($row['fecha_adquisicion']) . "</td>";
 
-        // ── Acciones ─────────────────────────────────────────────
+        // ── Columna Acciones ──────────────────────────────────────
         echo "<td><div style='display:flex;align-items:center;gap:12px;justify-content:center;'>";
-        echo "<a href='#' data-bs-toggle='modal' data-bs-target='#qrModal{$row['id']}'
-                 class='text-dark' title='Ver QR'>
-                 <i class='fas fa-qrcode'></i></a>";
-        echo "<a href='#' data-bs-toggle='modal' data-bs-target='#imagenModal{$row['id']}'
-                 class='text-primary' title='Ver imagen'>
-                 <i class='fas fa-image'></i></a>";
+
+        echo "<a class='icofont-ui-file icofont-1x text-dark' href='#'
+                 data-bs-toggle='modal'
+                 data-bs-target='#qrModal{$row['id']}'> QR</a>";
+
+        echo "<a href='#' data-bs-toggle='modal'
+                 data-bs-target='#imagenModal{$row['id']}'
+                 title='Ver imagen' style='text-decoration:none;'>
+                 <i class='fas fa-image text-primary'></i>
+               </a>";
+
         if ($isAdmin) {
-            echo "<a href='#' data-bs-toggle='modal' data-bs-target='#editModal{$row['id']}'
-                     class='text-info' title='Editar'>
-                     <i class='fas fa-edit'></i></a>";
-            echo "<a href='#' data-bs-toggle='modal' data-bs-target='#deleteModal{$row['id']}'
-                     class='text-danger' title='Dar de baja'>
-                     <i class='fas fa-trash-alt'></i></a>";
+            echo "<a href='#' data-bs-toggle='modal'
+                     data-bs-target='#editModal{$row['id']}'
+                     title='Editar' style='text-decoration:none;'>
+                     <i class='fas fa-edit text-info'></i>
+                   </a>";
+            echo "<a href='#' data-bs-toggle='modal'
+                     data-bs-target='#deleteModal{$row['id']}'
+                     title='Eliminar' style='text-decoration:none;'>
+                     <i class='fas fa-trash-alt text-danger'></i>
+                   </a>";
         }
-        echo "</div></td></tr>";
+
+        echo "</div></td>";
+        echo "</tr>";
 
         // ── Modal imagen ──────────────────────────────────────────
-        $imgSrc = !empty($row['imagen']) ? htmlspecialchars($row['imagen']) : '';
+        $imgSrc = !empty($row['imagen']) ? htmlspecialchars(BASE_URL . $row['imagen']) : '';
         echo "
         <div class='modal fade' id='imagenModal{$row['id']}' tabindex='-1' aria-hidden='true'>
           <div class='modal-dialog modal-dialog-centered'>
             <div class='modal-content'>
               <div class='modal-body text-center'>
-                " . ($imgSrc ? "<img src='$imgSrc' class='img-fluid rounded' style='max-height:500px;'>" : "<p class='text-muted'>Sin imagen</p>") . "
+                <img src='$imgSrc' class='img-fluid rounded' style='max-height:500px;'>
               </div>
               <div class='modal-footer'>
                 <button type='button' class='btn btn-secondary' data-bs-dismiss='modal'>Cerrar</button>
@@ -69,14 +85,15 @@ if ($result && $result->num_rows > 0) {
           </div>
         </div>";
 
-        // ── Modal editar ──────────────────────────────────────────
+        // ── Modal edición + eliminación (solo admin) ──────────────
         if ($isAdmin) {
             $imgActual = !empty($row['imagen'])
                 ? "<div class='mt-2'><strong>Imagen actual:</strong><br>
-                   <img src='" . htmlspecialchars($row['imagen']) . "'
+                   <img src='" . htmlspecialchars(BASE_URL . $row['imagen']) . "'
                         class='img-fluid rounded' style='max-height:150px;border:1px solid #ddd;'></div>"
                 : '';
 
+            // CORRECCIÓN: ambos formularios carecían de csrf_token
             echo "
             <div class='modal fade' id='editModal{$row['id']}' tabindex='-1' aria-hidden='true'>
               <div class='modal-dialog modal-lg'>
@@ -87,73 +104,47 @@ if ($result && $result->num_rows > 0) {
                   </div>
                   <div class='modal-body'>
                     <form action='editar-articulo.php' method='POST' enctype='multipart/form-data'>
+                      <input type='hidden' name='csrf_token' value='$csrfMeta'>
                       <input type='hidden' name='id' value='{$row['id']}'>
                       <div class='row'>
                         <div class='col-sm-6 mb-2'>
-                          <label>Nombre / Tipo</label>
-                          <input list='tipo_articulo_edit' class='form-control' name='nombre'
-                                 value='" . htmlspecialchars($row['nombre']) . "' required>
-                          <datalist id='tipo_articulo_edit'>
-                            <option value='Laptop'><option value='Computadora'>
-                            <option value='Mouse'><option value='Teclado'>
-                            <option value='Monitor'><option value='Impresora'>
-                            <option value='Multifuncional'><option value='Escáner'>
-                            <option value='Celular'><option value='Teléfono fijo'>
-                            <option value='Tablet'><option value='Switch'>
-                            <option value='Router'><option value='Access Point'>
-                            <option value='Cable HDMI'><option value='Cable USB'>
-                            <option value='Hub USB'><option value='Regulador'>
-                            <option value='UPS'><option value='Diadema/Headset'>
-                            <option value='Webcam'><option value='Bocinas'>
-                          </datalist>
+                          <label>Artículo</label>
+                          <input class='form-control' name='articulo'
+                                 value='" . htmlspecialchars($row['articulo']) . "' required>
                         </div>
                         <div class='col-sm-6 mb-2'>
                           <label>Marca</label>
                           <input class='form-control' name='marca'
-                                 value='" . htmlspecialchars($row['marca'] ?? '') . "'>
+                                 value='" . htmlspecialchars($row['marca']) . "' required>
                         </div>
                         <div class='col-sm-6 mb-2'>
                           <label>Modelo</label>
                           <input class='form-control' name='modelo'
-                                 value='" . htmlspecialchars($row['modelo'] ?? '') . "'>
+                                 value='" . htmlspecialchars($row['modelo']) . "' required>
                         </div>
                         <div class='col-sm-6 mb-2'>
-                          <label>N° Serie</label>
+                          <label>Número de Serie</label>
                           <input class='form-control' name='numero_serie'
-                                 value='" . htmlspecialchars($row['numero_serie'] ?? '') . "'>
-                        </div>
-                        <div class='col-sm-6 mb-2'>
-                          <label>N° Inventario</label>
-                          <input class='form-control' name='numero_inventario'
-                                 value='" . htmlspecialchars($row['numero_inventario'] ?? '') . "'>
+                                 value='" . htmlspecialchars($row['numero_serie']) . "' required>
                         </div>
                         <div class='col-sm-6 mb-2'>
                           <label>Categoría</label>
-                          <input list='categoria_edit' class='form-control' name='categoria'
-                                 value='" . htmlspecialchars($row['categoria'] ?? '') . "'>
-                          <datalist id='categoria_edit'>
-                            <option value='Cómputo'><option value='Periféricos'>
-                            <option value='Impresión'><option value='Telefonía'>
-                            <option value='Redes'><option value='Accesorios'>
-                            <option value='Mobiliario TI'>
-                          </datalist>
-                        </div>
-                        <div class='col-sm-6 mb-2'>
-                          <label>Fecha de Adquisición</label>
-                          <input type='date' class='form-control' name='fecha_adquisicion'
-                                 value='" . htmlspecialchars($row['fecha_adquisicion'] ?? '') . "'>
+                          <input class='form-control' name='categoria'
+                                 value='" . htmlspecialchars($row['categoria']) . "' required>
                         </div>
                         <div class='col-sm-6 mb-2'>
                           <label>Factura (PDF)</label>
                           <input type='file' name='factura' accept='application/pdf' class='form-control'>
                         </div>
-                        <div class='col-sm-12 mb-2'>
-                          <label>Descripción / Especificaciones</label>
-                          <textarea class='form-control' name='descripcion' rows='2'>" . htmlspecialchars($row['descripcion'] ?? '') . "</textarea>
+                        <div class='col-sm-6 mb-2'>
+                          <label>Fecha de Adquisición</label>
+                          <input type='date' class='form-control' name='fecha_adquisicion'
+                                 value='" . htmlspecialchars($row['fecha_adquisicion']) . "'>
                         </div>
                         <div class='col-sm-6 mb-2'>
                           <label>Imagen</label>
-                          <input type='file' class='form-control' name='imagen' accept='image/png,image/jpeg'>
+                          <input type='file' class='form-control' name='imagen'
+                                 accept='image/png, image/jpeg'>
                           <small class='text-muted'>Dejar vacío para mantener la imagen actual.</small>
                           $imgActual
                         </div>
@@ -168,40 +159,28 @@ if ($result && $result->num_rows > 0) {
               </div>
             </div>";
 
-            // ── Modal dar de baja ─────────────────────────────────
             echo "
             <div class='modal fade' id='deleteModal{$row['id']}' tabindex='-1' aria-hidden='true'>
               <div class='modal-dialog modal-dialog-centered'>
                 <div class='modal-content'>
                   <form action='eliminar-articulo.php' method='POST'>
-                    <div class='modal-header bg-danger text-white'>
-                      <h5 class='modal-title'>Dar de Baja Artículo</h5>
-                      <button type='button' class='btn-close btn-close-white' data-bs-dismiss='modal'></button>
+                    <input type='hidden' name='csrf_token' value='$csrfMeta'>
+                    <div class='modal-header'>
+                      <h5 class='modal-title'>¿Eliminar artículo?</h5>
+                      <button type='button' class='btn-close' data-bs-dismiss='modal'></button>
                     </div>
                     <div class='modal-body'>
-                      <p>¿Dar de baja <strong>" . htmlspecialchars($row['nombre']) . "</strong>?</p>
+                      ¿Está seguro de eliminar <strong>" . htmlspecialchars($row['articulo']) . "</strong>?
                       <input type='hidden' name='id' value='{$row['id']}'>
-                      <div class='mb-3'>
-                        <label class='form-label'>Motivo</label>
-                        <select name='motivo' class='form-control' required>
-                          <option value=''>— Selecciona —</option>
-                          <option value='Rotura'>Rotura</option>
-                          <option value='Pérdida'>Pérdida</option>
-                          <option value='Obsolescencia'>Obsolescencia</option>
-                          <option value='Robo'>Robo</option>
-                          <option value='Transferencia'>Transferencia</option>
-                          <option value='Otro'>Otro</option>
-                        </select>
-                      </div>
-                      <div class='mb-3'>
-                        <label class='form-label'>Descripción adicional</label>
-                        <textarea name='descripcion' class='form-control' rows='3'
-                                  placeholder='Detalla el motivo...'></textarea>
+                      <div class='mt-3'>
+                        <label class='form-label'>Motivo de baja:</label>
+                        <textarea name='motivo_baja' class='form-control' rows='3' required
+                                  placeholder='Escriba el motivo'></textarea>
                       </div>
                     </div>
                     <div class='modal-footer'>
                       <button type='button' class='btn btn-secondary' data-bs-dismiss='modal'>Cancelar</button>
-                      <button type='submit' class='btn btn-danger'>Dar de Baja</button>
+                      <button type='submit' class='btn btn-danger'>Sí, eliminar</button>
                     </div>
                   </form>
                 </div>
@@ -219,7 +198,8 @@ if ($result && $result->num_rows > 0) {
                 <button type='button' class='btn-close' data-bs-dismiss='modal'></button>
               </div>
               <div class='modal-body'>
-                No hay factura PDF para <strong>" . htmlspecialchars($row['nombre']) . "</strong>.
+                No hay ningún archivo PDF o factura para el artículo
+                <strong>" . htmlspecialchars($row['articulo']) . "</strong>.
               </div>
               <div class='modal-footer'>
                 <button type='button' class='btn btn-secondary' data-bs-dismiss='modal'>Cerrar</button>
@@ -234,20 +214,18 @@ if ($result && $result->num_rows > 0) {
           <div class='modal-dialog modal-dialog-centered'>
             <div class='modal-content'>
               <div class='modal-header'>
-                <h5 class='modal-title'>Código QR — " . htmlspecialchars($row['nombre']) . "</h5>
+                <h5 class='modal-title'>Código QR</h5>
                 <button type='button' class='btn-close' data-bs-dismiss='modal'></button>
               </div>
               <div class='modal-body text-center'>
                 <img id='qr{$row['id']}' src='qr.php?id={$row['id']}'
-                     class='img-fluid rounded' style='max-height:400px;'>
+                     class='img-fluid rounded' style='max-height:500px;'>
                 <br><br>
                 <button onclick='imprimirQR(\"qr{$row['id']}\")' type='button'
-                        class='btn btn-success'>
-                  <i class='fas fa-print'></i> Imprimir
-                </button>
+                        class='btn btn-success'>Imprimir</button>
               </div>
               <div class='modal-footer'>
-                <button type='button' class='btn btn-secondary' data-bs-dismiss='modal'>Cerrar</button>
+                <button type='button' class='btn btn-danger' data-bs-dismiss='modal'>Cerrar</button>
               </div>
             </div>
           </div>
@@ -257,14 +235,17 @@ if ($result && $result->num_rows > 0) {
     echo "<tr><td colspan='8' class='text-center text-muted'>No hay artículos disponibles.</td></tr>";
 }
 ?>
+
 <script>
 function imprimirQR(id) {
     const img = document.getElementById(id);
-    if (!img) return;
-    const w = window.open('', '_blank');
-    w.document.write(`<html><head><title>QR</title>
-    <style>body{text-align:center;margin-top:50px;}img{max-width:90%;}</style>
-    </head><body onload="window.print()"><img src="${img.src}"></body></html>`);
-    w.document.close();
+    if (!img) { alert("No se encontró la imagen del QR."); return; }
+    const ventana = window.open('', '_blank');
+    ventana.document.write(`
+        <html><head><title>Imprimir QR</title>
+        <style>body{text-align:center;margin-top:50px;}img{max-width:90%;height:auto;}</style>
+        </head><body onload="window.print()">
+        <img src="${img.src}" alt="Código QR"></body></html>`);
+    ventana.document.close();
 }
 </script>

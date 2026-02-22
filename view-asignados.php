@@ -1,97 +1,63 @@
 <?php
-// view-asignados.php — $conexion disponible desde dashboard.php
+// view-asignados.php — $conexion y Session disponibles desde dashboard.php
 
 $sql = "SELECT
-            a.id          AS articulo_id,
-            a.nombre,
-            a.marca,
-            a.modelo,
-            a.numero_serie,
-            a.categoria,
-            u.id          AS usuario_id,
+            a.id AS articulo_id,
+            a.articulo, a.marca, a.modelo, a.numero_serie, a.categoria,
+            u.id AS usuario_id,
             u.nombre_completo AS usuario,
-            s.fecha_asignacion,
-            s.pdf
+            s.fecha, s.evidencia
         FROM asignaciones s
         INNER JOIN articulo  a ON a.id = s.articulo_id
         INNER JOIN usuarios  u ON u.id = s.usuario_id
-        WHERE a.estatus = 1
-          AND s.fecha_devolucion IS NULL
-          AND s.estatus = 1
-        ORDER BY s.fecha_asignacion DESC";
+        WHERE a.estatus = ? AND s.fecha_devolucion IS NULL AND s.estatus = ?
+        ORDER BY s.fecha DESC";
 
-$resultado = $conexion->query($sql);
+$estAsig = ART_ASIGNADO;   // 1
+$asigAct = ASIG_ACTIVA;    // 1
 
-$isAdmin = ($_SESSION['rol'] ?? '') === 'Administrador';
+$stmtA = $conexion->prepare($sql);
+$stmtA->bind_param("ii", $estAsig, $asigAct);
+$stmtA->execute();
+$resultado = $stmtA->get_result();
+$stmtA->close();
 
 if (!$resultado) {
     echo "<tr><td colspan='8' class='text-center text-danger'>Error en la consulta.</td></tr>";
     return;
 }
 
+$isAdmin  = Session::isAdmin();
+$csrfMeta = htmlspecialchars($_SESSION['csrf_token'] ?? '');
+
 if ($resultado->num_rows === 0) {
-    echo "<tr><td colspan='8' class='text-center text-muted'>No hay asignaciones activas.</td></tr>";
+    echo "<tr><td colspan='8' class='text-center text-muted'>No hay asignaciones registradas.</td></tr>";
 } else {
     while ($row = $resultado->fetch_assoc()) {
         echo "<tr>";
-        echo "<td>" . htmlspecialchars($row['nombre'])          . "</td>";
-        echo "<td>" . htmlspecialchars($row['marca'] ?? '')     . "</td>";
-        echo "<td>" . htmlspecialchars($row['modelo'] ?? '')    . "</td>";
-        echo "<td>" . htmlspecialchars($row['numero_serie'] ?? '') . "</td>";
-        echo "<td>" . htmlspecialchars($row['categoria'] ?? '') . "</td>";
-        echo "<td>" . htmlspecialchars($row['usuario'])         . "</td>";
-        echo "<td>" . htmlspecialchars($row['fecha_asignacion']) . "</td>";
+        echo "<td>" . htmlspecialchars($row['articulo'])      . "</td>";
+        echo "<td>" . htmlspecialchars($row['marca'])         . "</td>";
+        echo "<td>" . htmlspecialchars($row['modelo'])        . "</td>";
+        echo "<td>" . htmlspecialchars($row['numero_serie'])  . "</td>";
+        echo "<td>" . htmlspecialchars($row['categoria'])     . "</td>";
+        echo "<td>" . htmlspecialchars($row['usuario'])       . "</td>";
+        echo "<td>" . htmlspecialchars($row['fecha'])         . "</td>";
         echo "<td class='text-center'>";
 
-        // Ver responsiva
-        if (!empty($row['pdf'])) {
-            echo "<a href='" . htmlspecialchars($row['pdf']) . "' target='_blank'
-                     class='btn btn-sm btn-outline-secondary me-1'>
-                     <i class='fas fa-file-pdf'></i></a>";
-        }
-
         if ($isAdmin) {
+            // CORRECCIÓN: faltaba csrf_token en el formulario
             echo "
-            <button class='btn btn-warning btn-sm'
-                    data-bs-toggle='modal'
-                    data-bs-target='#devolucionModal{$row['articulo_id']}'>
-              <i class='fas fa-undo'></i> Devolver
-            </button>";
+            <form method='POST' action='restaurar-articulo.php'
+                  onsubmit='return confirm(\"¿Deseas restaurar este artículo?\");'>
+              <input type='hidden' name='csrf_token'   value='$csrfMeta'>
+              <input type='hidden' name='articulo_id'  value='" . htmlspecialchars($row['articulo_id']) . "'>
+              <input type='hidden' name='usuario_id'   value='" . htmlspecialchars($row['usuario_id'])  . "'>
+              <button type='submit' class='btn btn-success btn-sm'>Restaurar</button>
+            </form>";
+        } else {
+            echo "<span class='text-muted'>Sin permisos</span>";
         }
 
         echo "</td></tr>";
-
-        // ── Modal devolución ──────────────────────────────────────
-        if ($isAdmin) {
-            echo "
-            <div class='modal fade' id='devolucionModal{$row['articulo_id']}' tabindex='-1' aria-hidden='true'>
-              <div class='modal-dialog modal-dialog-centered'>
-                <div class='modal-content'>
-                  <form method='POST' action='restaurar-articulo.php'
-                        onsubmit='return confirm(\"¿Confirmar devolución?\");'>
-                    <div class='modal-header bg-warning text-dark'>
-                      <h5 class='modal-title'>Registrar Devolución</h5>
-                      <button type='button' class='btn-close' data-bs-dismiss='modal'></button>
-                    </div>
-                    <div class='modal-body'>
-                      <p>Artículo: <strong>" . htmlspecialchars($row['nombre']) . "</strong></p>
-                      <p>Empleado: <strong>" . htmlspecialchars($row['usuario']) . "</strong></p>
-                      <input type='hidden' name='articulo_id' value='{$row['articulo_id']}'>
-                      <input type='hidden' name='usuario_id'  value='{$row['usuario_id']}'>
-                      <div class='mb-3'>
-                        <label>Observaciones de devolución</label>
-                        <textarea name='observaciones' class='form-control' rows='2'
-                                  placeholder='Estado del equipo, notas...'></textarea>
-                      </div>
-                    </div>
-                    <div class='modal-footer'>
-                      <button type='button' class='btn btn-secondary' data-bs-dismiss='modal'>Cancelar</button>
-                      <button type='submit' class='btn btn-warning'>Confirmar Devolución</button>
-                    </div>
-                  </form>
-                </div>
-              </div>
-            </div>";
-        }
     }
 }
