@@ -47,20 +47,23 @@ if ($result && $result->num_rows > 0) {
                  data-bs-toggle='modal'
                  data-bs-target='#qrModal{$row['id']}'> QR</a>";
 
-        echo "<a class='icofont-ui-image icofont-1x text-primary' href='#'
-                 data-bs-toggle='modal'
+        echo "<a href='#' data-bs-toggle='modal'
                  data-bs-target='#imagenModal{$row['id']}'
-                 title='Ver imagen'></a>";
+                 title='Ver imagen' style='text-decoration:none;'>
+                 <i class='fas fa-image text-primary'></i>
+               </a>";
 
         if ($isAdmin) {
-            echo "<a class='icofont-ui-edit icofont-1x text-info' href='#'
-                     data-bs-toggle='modal'
+            echo "<a href='#' data-bs-toggle='modal'
                      data-bs-target='#editModal{$row['id']}'
-                     title='Editar'></a>";
-            echo "<a class='icofont-ui-delete icofont-1x text-danger' href='#'
-                     data-bs-toggle='modal'
+                     title='Editar' style='text-decoration:none;'>
+                     <i class='fas fa-edit text-info'></i>
+                   </a>";
+            echo "<a href='#' data-bs-toggle='modal'
                      data-bs-target='#deleteModal{$row['id']}'
-                     title='Eliminar'></a>";
+                     title='Eliminar' style='text-decoration:none;'>
+                     <i class='fas fa-trash-alt text-danger'></i>
+                   </a>";
         }
 
         echo "</div></td>";

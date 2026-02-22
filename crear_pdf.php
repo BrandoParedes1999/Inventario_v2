@@ -14,7 +14,7 @@ if (empty($csrfToken) || $csrfToken !== ($_SESSION['csrf_token'] ?? '')) {
     exit;
 }
 
-require_once __DIR__ . '/tcpdf/tcpdf.php';
+require_once __DIR__ . 'lib/tcpdf/tcpdf.php';
 
 function vacio($v) {
     return (!empty($v)) ? $v : 'N/A';
@@ -30,8 +30,33 @@ if (!is_array($articulo_ids)) {
 
 $articulos_validos = array_filter($articulo_ids, fn($id) => intval($id) > 0);
 
-if (count($articulos_validos) === 0) {
-    die("Error: Debe seleccionar al menos un artículo válido.");
+// ── ¿Hay artículos adicionales completados? ────────────────────────
+$tieneAdicionales = !empty($_POST['activar_adicionales'])
+    && !empty(array_filter(
+        $_POST['adic_articulo'] ?? [],
+        fn($a) => trim($a) !== ''
+    ));
+
+// Si no hay artículos del inventario NI adicionales → error descriptivo
+if (count($articulos_validos) === 0 && !$tieneAdicionales) {
+    $seccionesActivas = array_filter([
+        !empty($_POST['activar_pc'])        ? 'PC/Laptop'     : null,
+        !empty($_POST['activar_monitor'])   ? 'Monitor'       : null,
+        !empty($_POST['activar_celular'])   ? 'Celular'       : null,
+        !empty($_POST['activar_telefono'])  ? 'Teléfono fijo' : null,
+    ]);
+    $hint = !empty($seccionesActivas)
+        ? 'Activaste: ' . implode(', ', $seccionesActivas)
+          . '. Para registrar un equipo del inventario debes '
+          . '<strong>seleccionar su N&deg; de serie desde la lista desplegable</strong> '
+          . '(escribe el serial y haz clic en la sugerencia).'
+        : 'Activa al menos una seccion y selecciona el N&deg; serie desde la lista, '
+          . 'o activa "Articulos adicionales" y agrega al menos una fila.';
+    die('<div style="font-family:Arial;padding:30px;">'
+        . '<h4 style="color:#c00">Error: No hay articulos para asignar</h4>'
+        . '<p>' . $hint . '</p>'
+        . '<a href="javascript:history.back()" style="color:blue">&larr; Regresar</a>'
+        . '</div>');
 }
 
 $area   = vacio($_POST['area']   ?? '');

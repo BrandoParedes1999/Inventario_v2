@@ -5,7 +5,7 @@ require_once __DIR__ . '/config/constants.php';
 
 Session::check(); // Cualquier usuario autenticado puede ver QRs
 
-require __DIR__ . '/phpqrcode/qrlib.php';
+require __DIR__ . '/lib/phpqrcode/qrlib.php';
 
 ob_clean();
 
